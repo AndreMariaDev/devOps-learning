@@ -18,6 +18,10 @@ No `Dockerfile`, temos uma ideia parecida, porém com alguns passos adicionais n
     - Número de pacotes contidos na versão
     - Tamanho da imagem
 
+    ```dockerfile
+    FROM node:18.20.4
+    ```
+
 2. **Indicamos o local de execução**
 
     ```dockerfile
@@ -66,7 +70,7 @@ No `Dockerfile`, temos uma ideia parecida, porém com alguns passos adicionais n
 ## Modelo Completo
 
 ```dockerfile
-FROM node:18-slim
+FROM node:18.20.4
 
 WORKDIR /usr/src/app
 
@@ -168,6 +172,12 @@ docker build -t api-rocket .
 	
 ```docker exec -it api-rocket-container bash```
 	
+<span style="color:red">***É importante destacar que a palavra chave bash só funciona para imagens que contem sub imagens debian!***</span>
+
+<span style="color:green">***Para imagens do tipo alpine utilizamos o sh !***</span>
+
+```docker exec -it api-rocket-container sh```
+
 **Desta forma podemos verificar o conteudo do nosso container**
 	
 ```
@@ -346,3 +356,40 @@ Desta forma para realizar a associação vamos digitar o seguinte código:
 	root@6ded198db4cf:/usr/src/app# exit
 ```	
 ### Desta forma podemos comprovar que o volume e persistente.
+
+# Multi Stage Build
+
+### Otimizando Size da Imagem
+
+Quando selecionamos o versão da imagem que utilizamos no trecho da palavra chave `FROM` temos o seguinte ponto:
+
+    ```dockerfile
+    FROM node:18.20.4
+    ```
+**ATENÇÃO**: É importante analisar pontos como:
+- Vulnerabilidade da versão selecionada
+- Número de pacotes contidos na versão
+- Tamanho da imagem
+
+Ao consultarmos o site do **DockerHub** temos os seguintes dados referentes a versão 18.20.4
+
+![](node-version18-20-4-devOps-learning.png)
+
+Podemos ver que:
+
+- Vulnerabilidade da versão selecionada <span style="color:red">**(107)**</span>
+- Número de pacotes contidos na versão <span style="color:red">**(747)**</span>
+- Tamanho da imagem <span style="color:red">**(5)**</span>
+
+Quando analizamos o size da imagem podemos ver que o valor pode ser otimizado. Por que?
+
+Porque quando criamos um container a responsabilidade daquele container é <span style="color:green">**EXECUTAR O BINÁRIO DA APLICAÇÃO!**</span> Qualquer coisa além <span style="color:red">**NÃO DEVE SER RESPONSABILIDADE DO CONTAINER!**</span>
+
+
+**Exemplo** : Comandos como basilares do Linux <span style="color:red">**[ls, cat, touch ...]**</span> não devem exister no bash! Porque  a responsabilidade do container é rodar aplicação e não haver a necessidade de algo alem do eco-sistema da própria tecnologia.
+
+Para solucionar esse problema surge uma versão mais enxuta, o <span style="color:green">**ALPINE!**</span>
+
+Agora vamos consultarmos o site do **DockerHub** e procurar pela versão alpine. Temos os seguintes dados: 
+
+![](node-version18-alpine-devOps-learning.png)
