@@ -402,14 +402,14 @@ Em resumo, a versão `node:18-alpine3.19` é geralmente preferida para ambientes
 
 Vamos alterar De :
 
-    ```dockerfile
-    FROM node:18.20.4
-    ```
+```dockerfile
+FROM node:18.20.4
+```
 Para:
 
-    ```dockerfile
-    FROM node:18-alpine3.19
-    ```
+```dockerfile
+FROM node:18-alpine3.19
+```
 
 ## Modelo Completo
 
@@ -486,37 +486,37 @@ CMD ["npm", "run", "start"]
 #end excution
 ```
 
-Para inplementarmos a ideia de Multi-stage no nosso arquivo vamos realizar os seguintes passos:
+Para implementarmos a ideia de Multi-stage no nosso arquivo vamos realizar os seguintes passos:
 
 1. Incluir um alies na instrução `FROM` :
 
 	Vamos alterar De :
 
-		```dockerfile
-		FROM node:18-alpine3.19
-		```
+	```dockerfile
+	FROM node:18-alpine3.19
+	```
 	Para:
 
-		```dockerfile
-		FROM node:18-alpine3.19 AS build
-		```
+	```dockerfile
+	FROM node:18-alpine3.19 AS build
+	```
 2. Vamos incluir uma nova instrução `FROM` semelhante a da fase de build após do contentário `#begin excution` .
 
-		```dockerfile
-		FROM node:18-alpine3.19
-		```
+	```dockerfile
+	FROM node:18-alpine3.19
+	```
 3. Vamos incluir uma nova instrução `WORKDIR` semelhante a da fase de build.
 
-		```dockerfile
-		WORKDIR /usr/src/app
-		```
+	```dockerfile
+	WORKDIR /usr/src/app
+	```
 
 4. Vamos incluir uma nova instrução `COPY` para copiar o conteudo de um estágio para o outro, nesse ponto vamos copiar os diretórios dist e node_modules.
 
-		```dockerfile
-		COPY --from=build /usr/src/app/dist ./dist
-		COPY --from=build /usr/src/app/node_modules ./node_modules
-		```
+	```dockerfile
+	COPY --from=build /usr/src/app/dist ./dist
+	COPY --from=build /usr/src/app/node_modules ./node_modules
+	```
 
 ## Modelo Completo
 
@@ -641,18 +641,84 @@ api-rocket   v1        fc0a2fce8d42   2 days ago          516MB
 
 ```
 
-Agora vamos cria um novo container para isso vamos rodar no terminal: 
+Agora vamos cria um novo container, para isso vamos rodar no terminal: 
 
 `docker run --volume api-rocket-volume:/usr/src/app --network=api-rocket-network --name api-rocket-container-v4 -p 3004:3000 -d api-rocket:v4`
 
 **Agora podemos verificar o conteudo do nosso container**
 
-<span style="color:green">***Para imagens do tipo alpine utilizamos o sh !***</span>
+<span style="color:green">***ATENÇÂO!!!! Para imagens do tipo alpine utilizamos o sh !***</span>
 
 ```docker exec -it api-rocket-container-v4 sh```
+
 ```
 /usr/src/app # ls
 Dockerfile           dist                 nest-cli.json        package-lock.json    src                  tsconfig.build.json
 README.md            dockerignore         node_modules         package.json         test                 tsconfig.json
 /usr/src/app # ^C
 ```
+
+
+### Command start:prod
+
+No passo anterior vimos como foi possível otimizar o size do container. Também vimos que realizando o build apenas com os packages de PRD teremos uma mudança significativa. Porém é necessário realizarmos algumas mudanças no Dockerfile referentes ao ambiente de PRD.
+
+Mas antes vamos analisar o arquivo `package.json` ...
+
+![](package-json.png)
+
+Como podemos ver na imagem acima temos no node `script` os comandos de start relacionados a cada ambiente: 
+
+1. "start:dev": "nest start --watch"
+2. "start:debug": "nest start --debug --watch"
+3. "start:prod": "node dist/main"
+
+Como preparamos o nosso container para rodar em PRD devemos modificar o Dockerfile.
+
+1. Vamos incluir uma nova instrução `COPY` para copiar o package.json.
+
+	```dockerfile
+	COPY --from=build /usr/src/app/package.json ./package.json
+	```
+2. Vamos adicionar o ambiente no item `start` da instrução `CMD`
+	```dockerfile
+	COPY --from=build /usr/src/app/package.json ./package.json
+	```
+
+Aqui está o exemplo de como ficará o Dockerfile:
+
+```dockerfile
+# begin build
+FROM node:18-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+RUN npm ci --only=production
+#end build
+
+#begin excution
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/package.json ./package.json
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:prod"]
+#end excution
+
+```
+
+
+vamos rodar no terminal:  `docker build -t api-rocket:prd .`
