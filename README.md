@@ -357,9 +357,9 @@ Desta forma para realizar a associação vamos digitar o seguinte código:
 ```	
 ### Desta forma podemos comprovar que o volume e persistente.
 
-# Multi Stage Build
+# Otimização
 
-### Otimizando Size da Imagem
+### Otimizando size da imagem
 
 Quando selecionamos o versão da imagem que utilizamos no trecho da palavra chave `FROM` temos o seguinte ponto:
 
@@ -393,3 +393,266 @@ Para solucionar esse problema surge uma versão mais enxuta, o <span style="colo
 Agora vamos consultarmos o site do **DockerHub** e procurar pela versão alpine. Temos os seguintes dados: 
 
 ![](node-version18-alpine-devOps-learning.png)
+
+Em resumo, a versão `node:18-alpine3.19` é geralmente preferida para ambientes de produção onde um contêiner mais leve e eficiente é desejável.
+
+### Alterando o Dockerfile
+
+1. **Iniciamos com `FROM`**
+
+Vamos alterar De :
+
+    ```dockerfile
+    FROM node:18.20.4
+    ```
+Para:
+
+    ```dockerfile
+    FROM node:18-alpine3.19
+    ```
+
+## Modelo Completo
+
+```dockerfile
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+```
+
+
+2. **No terminal vamos executar o seguinte comando docker**
+```
+docker build -t api-rocket:v2 .
+```
+
+3. Após a execução podemos rodar o comando `ls` para verificarmos o size da no imagem
+
+```
+docker image ls api-rocket
+```
+
+```
+REPOSITORY   TAG       IMAGE ID       CREATED             SIZE
+api-rocket   v2        52c869bbceb4   About a minuteago   452MB
+api-rocket   v1        fc0a2fce8d42   2 days ago          516MB
+```
+
+### Multi-stage builds
+
+Com multi-stage builds, você usa várias instruções `FROM` no seu Dockerfile. Cada instrução `FROM` pode usar uma base diferente, e cada uma delas inicia um novo estágio do build. Você pode copiar seletivamente artefatos de um estágio para outro, deixando para trás tudo o que não quer na imagem final.
+
+Exemplos:
+* Necessidade de instalar um package especifico para conclusão do build.
+
+* Ter uma imagem de produção com itens que não estão na responsabilidade de execução mas estão na responsabilidade de Build.
+
+
+Em outras palavars, **Um package que não faz parte do ciclo de vida de excução da aplicação deve estar apenas no step de build**
+
+
+Analisando o Dockerfile podemos ver que o nosso arquivo possui duas fases  
+
+```dockerfile
+# begin build
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+#end build
+
+#begin excution
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+#end excution
+```
+
+Para inplementarmos a ideia de Multi-stage no nosso arquivo vamos realizar os seguintes passos:
+
+1. Incluir um alies na instrução `FROM` :
+
+	Vamos alterar De :
+
+		```dockerfile
+		FROM node:18-alpine3.19
+		```
+	Para:
+
+		```dockerfile
+		FROM node:18-alpine3.19 AS build
+		```
+2. Vamos incluir uma nova instrução `FROM` semelhante a da fase de build após do contentário `#begin excution` .
+
+		```dockerfile
+		FROM node:18-alpine3.19
+		```
+3. Vamos incluir uma nova instrução `WORKDIR` semelhante a da fase de build.
+
+		```dockerfile
+		WORKDIR /usr/src/app
+		```
+
+4. Vamos incluir uma nova instrução `COPY` para copiar o conteudo de um estágio para o outro, nesse ponto vamos copiar os diretórios dist e node_modules.
+
+		```dockerfile
+		COPY --from=build /usr/src/app/dist ./dist
+		COPY --from=build /usr/src/app/node_modules ./node_modules
+		```
+
+## Modelo Completo
+
+```dockerfile
+# begin build
+FROM node:18-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+#end build
+
+#begin excution
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+#end excution
+```
+
+Modificado o nosso arquivo vamos rodar no terminal o comando de build para a nossa nova imagem.
+
+```docker build -t api-rocket:v3 .```
+
+Após a execução podemos consultar as imagens e comparamos o size entre as versões:
+
+vamos rodar no terminal: ```docker image ls api-rocket```
+
+```
+REPOSITORY   TAG       IMAGE ID       CREATED          SIZE
+api-rocket   v3        a9c2a090246f   47 seconds ago   274MB
+api-rocket   v2        52c869bbceb4   37 hours ago     452MB
+api-rocket   v1        fc0a2fce8d42   2 days ago       516MB
+```
+
+## Removendo dev-dependences 
+Em nosso estudo utilisamos como projeto base um api back-end Nodejs que utiliza o framework Nestjs.
+A estrutura do projeto possui o arquivo package.json responsável por algumas configurações do mesmo.
+Entre as configurações temos o node `devDependencies`.
+
+No contexto de um projeto Node.js com o framework NestJS, devDependencies são dependências que são usadas apenas durante o desenvolvimento e não são necessárias para a execução em produção. Elas são especificadas no arquivo package.json na seção "devDependencies".
+Utilidade das devDependencies
+
+* Ferramentas de Desenvolvimento: Incluem bibliotecas e ferramentas que ajudam durante o desenvolvimento, como TypeScript (compilador para JavaScript tipado), ts-node (execução de código TypeScript no Node.js), linters (por exemplo, ESLint), e formatadores de código (por exemplo, Prettier).
+
+* Testes: Ferramentas para testes, como Jest, Supertest ou outras bibliotecas de teste de unidade e integração, são comumente encontradas em devDependencies.
+
+* Compilação e Transpilers: Bibliotecas que são usadas para compilar ou transpilação de código, como Babel ou o próprio compilador TypeScript.
+
+* Ferramentas de Build: Ferramentas como Webpack, Nest CLI ou outras que auxiliam na construção do projeto.
+
+Por que usar devDependencies?
+
+* Desempenho em Produção: Dependências de desenvolvimento não são instaladas em ambientes de produção, o que reduz o tamanho da aplicação e melhora o tempo de inicialização.
+
+* Manutenção e Segurança: Manter dependências separadas facilita a gestão do projeto e ajuda a evitar problemas de segurança, uma vez que pacotes desnecessários não são instalados em produção.
+
+
+Visto que é necessário descartar os packages referentes ao `devDependencies` vamos realizar algumas alterações no Dockerfile.
+
+Vamos adicionar uma nova instrução RUN, porém no trecho  `RUN npm install ` vamos remover o `install` e vamos incluir o texto  `ci --only=production`
+
+OBS: 
+**Para usar `npm ci` no modo de produção em um Dockerfile,é preciso incluir  `--only=production` no comando. Este sinalizador instala apenas as dependências necessárias para produção, excluindo dependências de desenvolvimento.**
+
+Aqui está o exemplo de como ficará o Dockerfile:
+
+```dockerfile
+# begin build
+FROM node:18-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+RUN npm ci --only=production
+#end build
+
+#begin excution
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+#end excution
+
+```
+
+Após a execução podemos consultar as imagens e comparamos o size entre as versões:
+
+vamos rodar no terminal: ```docker image ls api-rocket```
+
+```
+REPOSITORY   TAG       IMAGE ID       CREATED             SIZE
+api-rocket   v4        ceb158fe877d   8 seconds ago       137MB
+api-rocket   v3        a9c2a090246f   About an hour ago   274MB
+api-rocket   v2        52c869bbceb4   39 hours ago        452MB
+api-rocket   v1        fc0a2fce8d42   2 days ago          516MB
+
+```
+
+Agora vamos cria um novo container para isso vamos rodar no terminal: 
+
+`docker run --volume api-rocket-volume:/usr/src/app --network=api-rocket-network --name api-rocket-container-v4 -p 3004:3000 -d api-rocket:v4`
+
+**Agora podemos verificar o conteudo do nosso container**
+
+<span style="color:green">***Para imagens do tipo alpine utilizamos o sh !***</span>
+
+```docker exec -it api-rocket-container-v4 sh```
+```
+/usr/src/app # ls
+Dockerfile           dist                 nest-cli.json        package-lock.json    src                  tsconfig.build.json
+README.md            dockerignore         node_modules         package.json         test                 tsconfig.json
+/usr/src/app # ^C
+```
