@@ -144,7 +144,7 @@ docker build -t api-rocket .
 		54dc76d6c9d0   api-rocket   "docker-entrypoint.s…"   7 minutes ago   Up 5 minutes   0.0.0.0:3001->3000/tcp   api-rocket-container
 ```
 
-**Para criar a conecção devemos passar o nome da rede e o nome do container**
+**Para criar a conexão devemos passar o nome da rede e o nome do container**
 
 ```docker network connect api-rocket-network api-rocket-container```
 
@@ -804,3 +804,173 @@ docker run -d -p 3306:3306 --name mysql-container api-rocket-db:v1
 * Conexão de Rede: O docker run original conecta a porta do contêiner à porta do host, algo que você ainda precisa fazer quando iniciar o contêiner a partir da imagem construída.
 
 * Persistência de Dados: Se você precisar garantir que os dados do MySQL sejam persistidos, você deve considerar usar volumes do Docker com a opção -v no comando docker run ou adicionar a configuração de volumes em um arquivo docker-compose.yml.
+
+
+## Construindo e Consumindo o Banco de Dados
+Agora que construimos o container do banco vamos preparar o back-end para consumir.
+
+1.  Instalando Dependências
+
+Instale as dependências necessárias para conectar ao MySQL:
+
+```dockerfile
+npm install @nestjs/typeorm typeorm mysql2
+```
+
+2. Configurando o TypeORM
+
+Edite o arquivo app.module.ts para incluir a configuração do TypeORM Responsável pela conexão da api com o Banco:
+
+```dockerfile
+// src/app.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from './users/users.module'; // Módulo de usuários que você criará
+import { User } from './users/user.entity'; // Entidade que você criará
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: 'localhost', // ou o nome do contêiner se estiver usando Docker Compose
+      port: 3306,
+      username: 'admin',
+      password: 'root',
+      database: 'rocketseat_db',
+      entities: [],
+      synchronize: true, // Não usar em produção
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+3. Rodando a Aplicação
+
+	Execute sua aplicação NestJS:
+
+```dockerfile
+npm run start
+```
+
+Ao executar a aplicação temos :
+
+```dockerfile
+C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto>npm run start
+
+> nome_do_projeto@0.0.1 start
+> nest start
+
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [NestFactory] Starting Nest application...
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [InstanceLoader] TypeOrmModule dependencies initialized +154ms
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [InstanceLoader] AppModule dependencies initialized +1ms
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +117ms
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [RoutesResolver] AppController {/}: +6ms
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [RouterExplorer] Mapped {/, GET} route +2ms
+[Nest] 2824  - 22/10/2024, 09:12:29     LOG [NestApplication] Nest application successfully started +3ms
+```
+
+Podemos ver que o `TypeOrm` foi iniciado `TypeOrmModule dependencies initialized`
+
+Analisando as configurações feitas no back-end podemos ver que `host` está configurado para p `'localhost'` mas por que?
+
+Fora do Docker: 
+* Se a aplicação `NestJS` estiver rodando fora de um contêiner Docker, ou em uma rede diferente, o nome do contêiner não será reconhecido como `hostname`. 
+Nesse caso, você precisará usar o `IP` ou o `hostname`(`'localhost'`) do host real onde o `MySQL` está rodando.
+
+Mas como seria o cenário se rodamos pelo container?
+
+Para isso vamos alterar o trecho `host` de `'localhost'` para `mysql-container`, desta forma teremos:
+
+```dockerfile
+// src/app.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from './users/users.module'; // Módulo de usuários que você criará
+import { User } from './users/user.entity'; // Entidade que você criará
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: 'mysql-container', // ou o nome do contêiner se estiver usando Docker Compose
+      port: 3306,
+      username: 'admin',
+      password: 'root',
+      database: 'rocketseat_db',
+      entities: [],
+      synchronize: true, // Não usar em produção
+    }),
+  ],
+})
+export class AppModule {}
+```
+Por que `mysql-container` ?
+
+Resolução de DNS Interna do Docker:
+* O Docker fornece um serviço de `DNS` interno que permite que os contêineres se resolvam pelo nome. 
+Quando você cria e nomeia um contêiner `(--name mysql-container)`, 
+o Docker faz com que esse nome esteja disponível como um endereço de rede. 
+Isso significa que você pode acessar o contêiner `MySQL` a partir de outros contêineres 
+usando mysql-container como o hostname.
+
+Feita a alteração vamos rodar o seguinte comando para atualizar a imagem do nosso back-end:
+
+```dockerfile
+docker build -t api-rocket:prd1 .
+```
+
+Apos a atualização da imagem vamos rodar o comando para o container:
+
+
+```dockerfile
+docker run --name api-rocket-container-prd1 -p 3001:3000 -d api-rocket:prd1
+```
+Agora se verificarmos os logs do container api-rocket-container-prd1 teremos:
+
+```dockerfile
+PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> docker logs api-rocket-container-prd1
+
+> nome_do_projeto@0.0.1 start:prod
+> node dist/main
+
+[Nest] 18  - 10/22/2024, 4:32:12 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 18  - 10/22/2024, 4:32:13 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +124ms
+[Nest] 18  - 10/22/2024, 4:32:13 PM     LOG [InstanceLoader] AppModule dependencies initialized +0ms
+[Nest] 18  - 10/22/2024, 4:32:18 PM   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (1)...
+Error: getaddrinfo EAI_AGAIN mysql-container
+    at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:107:26)
+
+```
+
+Por que obtemos o erro relacionado ao `TypeOrmModule`?
+
+* O erro ocorreu porque os contêineres não estavam em uma rede Docker com suporte a DNS. Conectar os contêineres a uma rede personalizada resolve esse problema, pois o Docker passa a fornecer a resolução de DNS necessária para que os contêineres se encontrem pelo nome.
+
+No tema `Redes` abordamos os passos de criação `Network` e conexão de `Network` em containers.
+
+**Primeiro consultamos a lista de network**
+```
+	PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> docker network ls
+
+		NETWORK ID     NAME                                                DRIVER    SCOPE
+		ff1bdac1e028   api-rocket-network                                  bridge    local
+```
+
+**Para criar a conexão do back-end devemos passar o nome da rede e o nome do container**
+
+```docker network connect api-rocket-network api-rocket-container-prd1```
+
+**Para criar a conexão do MySQL devemos passar o nome da rede e o nome do container**
+
+```docker network connect api-rocket-network mysql-container```
+
+Agora vamos verificar o los do conatiner back-end:
+
+```
+PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> docker logs api-rocket-container-prd1
+
+[Nest] 18  - 10/22/2024, 4:54:35 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 18  - 10/22/2024, 4:54:35 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +105ms
+```
+
