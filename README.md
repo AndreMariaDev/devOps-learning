@@ -951,10 +951,10 @@ No tema `Redes` abordamos os passos de criação `Network` e conexão de `Networ
 
 **Primeiro consultamos a lista de network**
 ```
-	PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> docker network ls
+PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> docker network ls
 
-		NETWORK ID     NAME                                                DRIVER    SCOPE
-		ff1bdac1e028   api-rocket-network                                  bridge    local
+	NETWORK ID     NAME                                                DRIVER    SCOPE
+	ff1bdac1e028   api-rocket-network                                  bridge    local
 ```
 
 **Para criar a conexão do back-end devemos passar o nome da rede e o nome do container**
@@ -974,3 +974,88 @@ PS C:\Users\Andre Maria\Documents\Estudo\DevOps RecketSeat\nome_do_projeto> dock
 [Nest] 18  - 10/22/2024, 4:54:35 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +105ms
 ```
 
+# Orquestração de Containers
+
+Usar uma ferramenta de orquestração de contêineres, como o Docker Compose, é mais vantajoso nesse cenário do que usar comandos docker run individuais.
+Vamos ver os motivos pelos quais o Docker Compose é preferível para gerenciar uma configuração multi-contêiner:
+
+1. Facilidade de Configuração e Manutenção
+2. Configuração de Redes Automatizada
+3. Ordem de Inicialização com depends_on (O Docker Compose permite definir dependências entre serviços usando a opção depends_on)
+4. Facilidade para Compartilhar e Reproduzir o Ambiente
+5. Melhor Gerenciamento de Variáveis de Ambiente
+6. Facilidade de Escalonamento (Docker Compose permite escalar serviços rapidamente com o comando docker-compose up --scale)
+
+### Agora, vamos criar e configurar o arquivo docker-compose.yaml e explicar os passos de sua configuração
+
+O arquivo docker-compose.yaml configura um ambiente Docker com dois serviços: um banco de dados MySQL e uma aplicação Node.js (api-rocket). Vamos detalhar cada parte:
+Estrutura do docker-compose.yaml
+
+1.  Versão do Compose
+        version: '3.7' indica a versão do Docker Compose a ser utilizada.
+
+Serviços Configurados
+
+2.  Serviço mysql
+*        image: mysql:8: Usa a imagem oficial do MySQL na versão 8.
+*        container_name: mysql-container: Nome do contêiner será mysql-container.
+*        ports: - 3306:3306: Mapeia a porta 3306 do contêiner para a porta 3306 do host, permitindo o acesso ao MySQL.
+*        environment: Define variáveis de ambiente para configurar o banco de dados:
+            MYSQL_ROOT_PASSWORD: Senha do usuário root (root).
+            MYSQL_DATABASE: Nome do banco de dados a ser criado (rocketseat-db).
+            MYSQL_USER e MYSQL_PASSWORD: Credenciais para um usuário adicional (admin com senha root).
+*        networks: Conecta o contêiner à rede personalizada api-rocket-network.
+
+3.  Serviço api-rocket
+*        build: context: .: Especifica que a construção da imagem será feita com base no diretório atual.
+*        container_name: api-rocket-container: Nome do contêiner será api-rocket-container.
+*        ports: - "3001:3000": Mapeia a porta 3000 do contêiner para a porta 3001 do host, permitindo o acesso à aplicação.
+*        depends_on: - mysql: Especifica que o contêiner api-rocket deve ser iniciado após o contêiner mysql, garantindo que o banco de dados esteja pronto.
+*        networks: Conecta o contêiner à rede personalizada api-rocket-network.
+
+Redes
+
+4.  Definição de Rede
+        networks: api-rocket-network:: Cria uma rede do tipo bridge chamada api-rocket-network. Isso permite que os serviços se comuniquem entre si usando os nomes dos contêineres como hostnames.
+
+
+### Resumo do Funcionamento
+
+Essa configuração cria uma aplicação onde o contêiner api-rocket (aplicação NestJS) se conecta ao 
+contêiner mysql (banco de dados), ambos rodando na mesma rede Docker (api-rocket-network). 
+Isso facilita a comunicação entre eles e simplifica a configuração do ambiente. 
+
+Aqui está o exemplo de como ficará o Dockerfile:
+
+```dockerfile
+version: '3.7' #indica a versão do Docker Compose a ser utilizada.
+services:
+  mysql:
+    image: mysql:8 #Usa a imagem oficial do MySQL na versão 8.
+    container_name: mysql-container #Nome do contêiner será mysql-container.
+    ports:
+      - 3306:3306 #Mapeia a porta 3306 do contêiner para a porta 3306 do host,
+    environment: #Define variáveis de ambiente para configurar o banco de dados:
+      - MYSQL_ROOT_PASSWORD=root #Senha do usuário root (root).
+      - MYSQL_DATABASE=rocketseat-db #Nome do banco de dados a ser criado (rocketseat-db).
+      - MYSQL_USER=admin #Credenciais para um usuário adicional (admin com senha root).
+      - MYSQL_PASSWORD=root
+    networks:
+      - api-rocket-network #Conecta o contêiner à rede personalizada api-rocket-network.
+
+  api-rocket:
+    build:
+      context: . #Especifica que a construção da imagem será feita com base no aqruivo Dockerfile
+    container_name: api-rocket-container # Nome do contêiner será api-rocket-container
+    ports:
+      - "3001:3000" #Mapeia a porta 3000 do contêiner para a porta 3001 do host, permitindo o acesso à aplicação.
+    depends_on:
+      - mysql #Especifica que o contêiner api-rocket deve ser iniciado após o contêiner mysql, garantindo que o banco de dados esteja pronto.
+    networks: #Conecta o contêiner à rede personalizada api-rocket-network.
+      - api-rocket-network
+
+networks:
+  api-rocket-network:
+    driver: bridge
+
+```
