@@ -722,3 +722,85 @@ CMD ["npm", "run", "start:prod"]
 
 
 vamos rodar no terminal:  `docker build -t api-rocket:prd .`
+
+
+# Trabalhando com multiplos containers
+
+Vamos imaginar um cenário onde a nossa aplicação back-end consome dados de um banco de dados MySQL que estará rodando em um contêiner Docker.
+Para criarmos o banco vamos rodar o seguinte comando no termial: 
+
+```
+docker run -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=rocketseat-db -e MYSQL_USER=admin -e MYSQL_PASSWORD=root --name mysql-container mysql:8
+```
+
+Vamos entender os itens do camando acima.
+
+1. `-d` : Esta opção executa o contêiner em segundo plano (detached mode). Isso significa que o terminal não ficará preso ao contêiner, permitindo que você continue a usar o terminal para outros comandos.
+
+2. `-p 3306:3306` : Esta opção mapeia a porta 3306 do contêiner (onde o MySQL está ouvindo) para a porta 3306 do host. Isso permite que você acesse o MySQL no contêiner a partir do seu sistema host, usando localhost:3306.
+
+3. `-e MYSQL_ROOT_PASSWORD=root` : Define a variável de ambiente MYSQL_ROOT_PASSWORD dentro do contêiner, especificando a senha para o usuário root do MySQL. Essa variável é necessária para a inicialização do MySQL.
+
+4. `-e MYSQL_DATABASE=rocketseat-db` : Define a variável de ambiente MYSQL_DATABASE, que cria um banco de dados chamado rocketseat-db na inicialização do MySQL.
+
+5. `-e MYSQL_USER=admin` : Define a variável de ambiente MYSQL_USER, que cria um novo usuário chamado admin no MySQL. Este usuário será utilizado para acessar o banco de dados.
+
+6. `-e MYSQL_PASSWORD=root` : Define a variável de ambiente MYSQL_PASSWORD, que especifica a senha para o usuário admin que foi criado anteriormente.
+
+7. `--name mysql-container` : Este parâmetro atribui um nome específico ao contêiner que está sendo criado. Nesse caso, o contêiner será chamado de mysql-container. Isso facilita a referência ao contêiner em comandos futuros.
+
+8. `mysql:8` : Especifica a imagem que será usada para criar o contêiner. Aqui, mysql:8 refere-se à versão 8 da imagem oficial do MySQL. Se a imagem não estiver disponível localmente, o Docker fará o download da imagem do repositório Docker Hub.
+
+Uma outra maneira de implementar o comando é criar um Dockerfile para o mesmo:
+
+Aqui está um exemplo de `Dockerfile` que poderia ser usado para criar uma imagem Docker com `MySQL` configurado conforme o seu comando:
+
+```dockerfile
+# Use a imagem oficial do MySQL como base
+FROM mysql:8
+
+# Defina as variáveis de ambiente
+ENV MYSQL_ROOT_PASSWORD=root
+ENV MYSQL_DATABASE=rocketseat-db
+ENV MYSQL_USER=admin
+ENV MYSQL_PASSWORD=root
+
+# Exponha a porta padrão do MySQL
+EXPOSE 3306
+
+# O MySQL será iniciado automaticamente quando o contêiner for executado
+```
+
+Explicação de Cada Linha
+
+`FROM mysql:8` : Esta linha especifica que estamos usando a imagem oficial do MySQL versão 8 como base para a nossa imagem.
+
+`ENV MYSQL_ROOT_PASSWORD=root` : Define a variável de ambiente MYSQL_ROOT_PASSWORD, que é necessária para configurar a senha do usuário root do MySQL.
+
+`ENV MYSQL_DATABASE=rocketseat-db` : Define a variável de ambiente MYSQL_DATABASE, que cria um banco de dados chamado rocketseat-db quando o contêiner é iniciado.
+
+`ENV MYSQL_USER=admin` : Define a variável de ambiente MYSQL_USER, que cria um novo usuário chamado admin.
+
+`ENV MYSQL_PASSWORD=root` : Define a variável de ambiente MYSQL_PASSWORD, que especifica a senha para o usuário admin.
+
+`EXPOSE 3306` : Expondo a porta 3306, que é a porta padrão que o MySQL usa. Isso é informativo e ajuda a indicar que a aplicação escuta nesta porta, mas não mapeia a porta no host como faz o comando docker run.
+
+## Construindo e Executando a Imagem
+
+Depois de criar o `Dockerfile`, você pode construir a imagem com o seguinte comando.
+
+```dockerfile
+docker build -t api-rocket-db:v1 .
+```
+
+Em seguida, você pode executar um contêiner com a imagem que acabou de construir usando um comando `docker run` semelhante ao que você forneceu:
+
+```dockerfile
+docker run -d -p 3306:3306 --name mysql-container api-rocket-db:v1
+```
+
+## Observações
+
+* Conexão de Rede: O docker run original conecta a porta do contêiner à porta do host, algo que você ainda precisa fazer quando iniciar o contêiner a partir da imagem construída.
+
+* Persistência de Dados: Se você precisar garantir que os dados do MySQL sejam persistidos, você deve considerar usar volumes do Docker com a opção -v no comando docker run ou adicionar a configuração de volumes em um arquivo docker-compose.yml.
