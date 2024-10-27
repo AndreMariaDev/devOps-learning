@@ -1027,12 +1027,14 @@ Isso facilita a comunicação entre eles e simplifica a configuração do ambien
 
 Aqui está o exemplo de como ficará o Dockerfile:
 
-```dockerfile
+```docker-compose
 version: '3.7' #indica a versão do Docker Compose a ser utilizada.
 services:
   mysql:
     image: mysql:8 #Usa a imagem oficial do MySQL na versão 8.
     container_name: mysql-container #Nome do contêiner será mysql-container.
+    volumes:
+      - db:/var/lib/mysql
     ports:
       - 3306:3306 #Mapeia a porta 3306 do contêiner para a porta 3306 do host,
     environment: #Define variáveis de ambiente para configurar o banco de dados:
@@ -1057,5 +1059,8 @@ services:
 networks:
   api-rocket-network:
     driver: bridge
+
+volumes:
+  db:
 
 ```
