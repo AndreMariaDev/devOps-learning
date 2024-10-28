@@ -11,7 +11,7 @@
 
 Overview IAC
 
-![](IOC-Fluxo.png)
+![](image/IOC-Fluxo.png)
 
 ### Declarativo vs Imperativo.
 
@@ -54,14 +54,14 @@ https://aws.amazon.com/pt/cli/
 
 Acessar o POrtal da AWS 
 
-![](SSO-AWS.png)
+![](image/SSO-AWS.png)
 
-![](enable.png)
+![](image/enable.png)
 
 https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-1#/security_credentials
 
 
-![](painel-sso.png)
+![](image/painel-sso.png)
 
 Configurando o SSO Profile
 
@@ -73,21 +73,21 @@ Configurando o SSO Profile
 
     Aqui o camando gera uma sequencia de perguntas. As respontas estão na sessão: **Resumo das configurações** do **IAM Identity Center**
 
-    ![](resumo-das-configuracoes.png)
+    ![](image/resumo-das-configuracoes.png)
 
 2. Terraform Profile
 
 Para configurar o terraform profile vamos acessar o link : https://registry.terraform.io/browse/providers
 
-![](terraform-profile-site.png)
+![](image/terraform-profile-site.png)
 
 Em seguida selecionar AWS:
 
-![](terraform-profile-site-aws.png)
+![](image/terraform-profile-site-aws.png)
 
 Em seguida selecionar o botão `USER PROVIDER`
 
-![](terraform-profile-site-aws-how-to-use.png)
+![](image/terraform-profile-site-aws-how-to-use.png)
 Abaixo temos o exemplo :
 
 ```hcl
@@ -149,7 +149,7 @@ bucket = "rocketseat-bucket-iac-andre-maria":
     b- `terraform apply -auto-approve` (sem etapa de confirmação)
 
 
-![](bucket-01.png)
+![](image/bucket-01.png)
 
 Caso queira remover :
 
@@ -384,7 +384,7 @@ module "s3" {
 Após a inclusão é necessário rodar o comando `terraform init` para realizar o install do s3 e o `terraform plan`.
 
 Como resultado temos:
-![](run-terreform-plan-modules-s3.png)
+![](image/run-terreform-plan-modules-s3.png)
 
 Podemos ver que o item `+ bucket_domain_name          = (known after apply)`
 
@@ -419,7 +419,7 @@ module "s3" {
 
 Agora vamos rodar o comando `terraform plan` para vermos as mudanças.
 
-![](run-terreform-plan-modules-s3-variable.png)
+![](image/run-terreform-plan-modules-s3-variable.png)
 
 ### ATENÇÃO! Toda variavel citada em um module deve estar presente no arquivo de variáveis!
 
@@ -445,11 +445,11 @@ No caso do `Cloudfront` a implementação não é simples como a do `S3`.
 Nesse caso vamos consultar a documentação disponobilizada pela a terraform pelo link : https://registry.terraform.io/providers/hashicorp/aws/latest/docs
 
 Pesquisar por aws_cloudfront_distribution ...
-![](cloudfront-search-doc.png)
+![](image/cloudfront-search-doc.png)
 
 Selecione distribution.
 
-![](cloudfront-search-doc.png)
+![](image/cloudfront-search-doc.png)
 
 como exemplo vamos inicialmente usar o seguintes valores : 
 
@@ -521,11 +521,11 @@ module "cloudfront" {
 
 Após a inclusão é necessário rodar o comando `terraform init` para realizar o install do `cloudfront` e rodar o comando `terraform plan`.
 
-![](create-cloudfront-error.png)
+![](image/create-cloudfront-error.png)
 
 Esse erro foi apresentado porque ao configurar o cloudfront não incluimos um valor para apropriedade `origin_id`.
 
-![](origin_id-error.png)
+![](image/origin_id-error.png)
 
 Informações como `origin_id` e `domain_name` são informações requeridas para a criação do `cloudfront`. Mas como e onde vamos obter tais informações.
 
@@ -652,6 +652,6 @@ resource "aws_cloudfront_distribution" "cloudfront" {
 
 Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
 
-![](bucket-cloud-create.png)
+![](image/bucket-cloud-create.png)
 
-![](cloudfront-create.png)
+![](image/cloudfront-create.png)

@@ -373,7 +373,7 @@ Quando selecionamos o versão da imagem que utilizamos no trecho da palavra chav
 
 Ao consultarmos o site do **DockerHub** temos os seguintes dados referentes a versão 18.20.4
 
-![](node-version18-20-4-devOps-learning.png)
+![](image/node-version18-20-4-devOps-learning.png)
 
 Podemos ver que:
 
@@ -392,7 +392,7 @@ Para solucionar esse problema surge uma versão mais enxuta, o <span style="colo
 
 Agora vamos consultarmos o site do **DockerHub** e procurar pela versão alpine. Temos os seguintes dados: 
 
-![](node-version18-alpine-devOps-learning.png)
+![](image/node-version18-alpine-devOps-learning.png)
 
 Em resumo, a versão `node:18-alpine3.19` é geralmente preferida para ambientes de produção onde um contêiner mais leve e eficiente é desejável.
 
@@ -665,7 +665,7 @@ No passo anterior vimos como foi possível otimizar o size do container. Também
 
 Mas antes vamos analisar o arquivo `package.json` ...
 
-![](package-json.png)
+![](image/package-json.png)
 
 Como podemos ver na imagem acima temos no node `script` os comandos de start relacionados a cada ambiente: 
 
