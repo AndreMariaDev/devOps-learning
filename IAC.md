@@ -323,3 +323,335 @@ resource "aws_s3_bucket" "s3_bucket"{
 }
 ```
 
+9. Modulo
+
+    Módulos são pacotes independentes de configurações do Terraform que são gerenciados como um grupo.
+
+    O site do Terraform possui exemplos de Modulos por Providers:
+    https://registry.terraform.io/browse/modules
+
+    Modulos são similares a packages npm , onde vc pode consumir um ou compartilhar.
+
+### Objetivo exemplo: `Utilizar o CloudFront com o S3`
+
+O `CloudFront` precisa de alguns informações contidas no `S3`.
+Nesse exemplo vamos trabalhar com conceitos de variáveis, outputs e datasource.
+
+Vamos iniciar com a criação do Modulo para o S3.
+
+Pensando na estrutura teremos o seguinte modelo.
+
+```
+.
+├── main.tf
+├── modules
+│   └── s3
+│       ├── main.tf
+│       ├── outputs.tf
+│       └── variables.tf
+└── providers.tf
+```
+Logo vamos criar as pasta e os arquivos conforme o fluxo.
+
+Após a criação vamos progamar o arquivo main.tf com a implementação do s3.
+
+```hcl
+resource "aws_s3_bucket" "bucket_to_cloudfront"{
+    bucket = ""
+
+    tags = {
+    }
+}
+```
+Após a criação vamos progamar o arquivo outputs.tf com a implementação do s3.
+
+```hcl
+output bucket_domain_name {
+  value       = ""
+  sensitive   = false
+  description = "Nome de domínio do bucket S3"
+  depends_on  = []
+}
+```
+
+O próximo passo é vincular o module s3 a raiz. Para isso vamos adicionar as informações necessárias do novo module no arquivo main.tf contido na raiz.
+
+```hcl
+module "s3" {
+    source = "./modules/s3"
+}
+```
+Após a inclusão é necessário rodar o comando `terraform init` para realizar o install do s3 e o `terraform plan`.
+
+Como resultado temos:
+![](run-terreform-plan-modules-s3.png)
+
+Podemos ver que o item `+ bucket_domain_name          = (known after apply)`
+
+está com um valor randomico. Desta forma vamos codificar o nosso arquivo `variables.tf` .
+
+```hcl
+variable "s3_bucket_name" {
+  type        = string
+  description = "Nome do bucket"
+}
+```
+
+Fito isso vamos agregar a nossa variavel a propriedade `bucket` contido no arquivo `main.tf` da pasta `s3`.
+
+```hcl
+resource "aws_s3_bucket" "bucket_to_cloudfront"{
+    bucket = "${var.s3_bucket_name}-{terraform.workspace}"
+
+    tags = {
+    }
+}
+```
+
+Para finalizar devemos indicar a variável no arquivo main.tf da raiz.
+
+```hcl
+module "s3" {
+    source = "./modules/s3"
+    s3_bucket_name = "tutorial-rocketset-iac"
+}
+```
+
+Agora vamos rodar o comando `terraform plan` para vermos as mudanças.
+
+![](run-terreform-plan-modules-s3-variable.png)
+
+### ATENÇÃO! Toda variavel citada em um module deve estar presente no arquivo de variáveis!
+
+Vamos agora iniciar a criação do Modulo para o Cloudfront.
+
+Pensando na estrutura teremos o seguinte modelo.
+
+```
+.
+├── main.tf
+├── modules
+│   └── s3
+│       ├── main.tf
+│       └── variables.tf
+│   └── cloudfront
+│       ├── main.tf
+│       ├── outputs.tf
+│       └── variables.tf
+└── providers.tf
+```
+
+No caso do `Cloudfront` a implementação não é simples como a do `S3`.
+Nesse caso vamos consultar a documentação disponobilizada pela a terraform pelo link : https://registry.terraform.io/providers/hashicorp/aws/latest/docs
+
+Pesquisar por aws_cloudfront_distribution ...
+![](cloudfront-search-doc.png)
+
+Selecione distribution.
+
+![](cloudfront-search-doc.png)
+
+como exemplo vamos inicialmente usar o seguintes valores : 
+
+```hcl
+resource "aws_cloudfront_distribution" "cloudfront" {
+  enabled             = true
+
+  origin {
+    origin_id    = ""
+    domain_name  = ""
+    custom_origin_config {
+        http_port               = 80
+        https_port              = 443
+        origin_protocol_policy  = "http-only"
+        origin_ssl_protocols    = ["TLSv1"]
+    }
+  }
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.s3_origin_id
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  price_class = "PriceClass_200"
+
+}
+```
+
+Logo vamos criar as pasta e os arquivos conforme o fluxo.
+
+Após a criação vamos progamar o arquivo cloudfront/main.tf com a implementação do cloudfront.
+
+É importante destacar que o cloudfront depende do s3, desta forma vamos declarar no ./main.tf o seguinte trecho.
+
+```hcl
+module "s3" {
+    source = "./modules/s3"
+    s3_bucket_name = "tutorial-rocketset-iac"
+}
+
+module "cloudfront" {
+    source = "./modules/cloudfront"
+}
+```
+
+Após a inclusão é necessário rodar o comando `terraform init` para realizar o install do `cloudfront` e rodar o comando `terraform plan`.
+
+![](create-cloudfront-error.png)
+
+Esse erro foi apresentado porque ao configurar o cloudfront não incluimos um valor para apropriedade `origin_id`.
+
+![](origin_id-error.png)
+
+Informações como `origin_id` e `domain_name` são informações requeridas para a criação do `cloudfront`. Mas como e onde vamos obter tais informações.
+
+Como destacamos anteriormente  `"É importante destacar que o cloudfront depende do s3 ..."`
+Desta forma vamos configurar os outputs na pasta s3 para retronar as informações que queremos.
+
+```hcl
+output bucket_domain_name {
+  value       = ""
+  sensitive   = false
+  description = "Nome de domínio do bucket S3"
+  depends_on  = []
+}
+
+output bucket_id {
+  value       = ""
+  sensitive   = false
+  description = "Id de domínio do bucket S3"
+  depends_on  = []
+}
+```
+
+No trecho acima temos a propriedade value contida em cada output, é nela que vamos incluir o valor desejado.
+Para isso podemos criar um datasource ou pegar do próprio componente. 
+Vamos usar a segunda abordagem.
+
+```hcl
+output bucket_domain_name {
+  value       = aws_s3_bucket.bucket_to_cloudfront.bucket_domain_name
+  sensitive   = false
+  description = "Nome de domínio do bucket S3"
+  depends_on  = []
+}
+
+output bucket_id {
+  value       = aws_s3_bucket.bucket_to_cloudfront.id
+  sensitive   = false
+  description = "Id de domínio do bucket S3"
+  depends_on  = []
+}
+```
+
+Agora vamos incluir os outputs como saidas no module do s3
+
+```hcl
+module "s3" {
+    source = "./modules/s3"
+    s3_bucket_name = "tutorial-rocketset-iac"
+}
+
+module "cloudfront" {
+    source = "./modules/cloudfront"
+    bucket_domain_name = module.s3.bucket_domain_name
+    origin_id = module.s3.bucket_id
+    depends_on  = [
+        module.s3
+    ]
+}
+```
+Agora vamos incluir as propriedades origin_id e bucket_domain_name no `./cloudfront/variables.tf` .
+
+```hcl
+variable "origin_id" {
+  type        = string
+  description = "Id do S3"
+}
+
+variable "bucket_domain_name" {
+  type        = string
+  description = "Domínio do S3"
+}
+```
+
+Agora vamos incluir as propriedades origin_id e bucket_domain_name no `./cloudfront/main.tf` contidas no resource .
+
+```hcl
+resource "aws_cloudfront_distribution" "cloudfront" {
+  enabled             = true
+
+  origin {
+    origin_id    = "${var.origin_id}"
+    domain_name  = "${var.bucket_domain_name}"
+    custom_origin_config {
+        http_port               = 80
+        https_port              = 443
+        origin_protocol_policy  = "http-only"
+        origin_ssl_protocols    = ["TLSv1"]
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id = var.origin_id
+    allowed_methods  = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  price_class = "PriceClass_200"
+
+}
+```
+
+Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
+
+![](bucket-cloud-create.png)
+
+![](cloudfront-create.png)
