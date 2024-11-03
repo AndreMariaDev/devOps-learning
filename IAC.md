@@ -655,3 +655,263 @@ Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
 ![](image/bucket-cloud-create.png)
 
 ![](image/cloudfront-create.png)
+
+
+10. Definir Tags
+
+Agora vamos definir as tags relacionadas ao `Cloudfront`. Para isso vamos primeiro criar uma variavel especifica para o `Tag` do `Cloudfront`.
+
+Como vimos anteriormante o atributo `Tag` é um objeto que contém multiplas informações, desta forma a implementação para o tipo da variavel será 
+`map(string)` e o `default` será uma objeto vazio 
+
+```hcl
+variable "origin_id" {
+  type        = string
+  description = "Id do S3"
+}
+
+variable "bucket_domain_name" {
+  type        = string
+  description = "Domínio do S3"
+}
+
+variable "cdn_tags" {
+  type        = map(string)
+  default     = {}
+  description = "Tags de criação"
+}
+
+```
+
+Logo após vamos incluir a propriedade tag no arquivo `./main.tf` no trecho que refere ao `Cloudfront`.
+
+```hcl
+module "s3" {
+  source         = "./modules/s3"
+  s3_bucket_name = "tutorial-rocketset-iac"
+}
+
+module "cloudfront" {
+  source             = "./modules/cloudfront"
+  bucket_domain_name = module.s3.bucket_domain_name
+  origin_id          = module.s3.bucket_id
+  cdn_tags   = {
+    Iac = true
+  }
+  depends_on = [
+    module.s3
+  ]
+}
+```
+
+Agora faremos o mesmo para o `S3`. Para isso acesse o arquivo `modules\s3\variables.tf`.
+ 
+```hcl
+ variable "s3_bucket_name" {
+  type        = string
+  description = "Nome do bucket"
+}
+
+variable "s3_tags" {
+  type        = map(string)
+  default     = {}
+  description = "Tags de criação"
+}
+```
+
+Em seguida adicione a chamada da variavel na implementação do `S3` no arquivo `modules\s3\main.tf` 
+
+```hcl
+resource "aws_s3_bucket" "bucket_to_cloudfront"{
+    bucket = "${var.s3_bucket_name}-${terraform.workspace}"
+
+    tags = "${var.s3_tags}"
+}
+```
+
+11. Utilizando Modules externos
+
+O site do Terraform possui exemplos de Modulos por Providers: https://registry.terraform.io/browse/modules 
+Aqui vamos usar um module de queue chamado `sqs`.
+
+![](image/sqs-module-search.png)
+
+https://registry.terraform.io/modules/terraform-aws-modules/sqs/aws/latest
+
+Vamos usar o exemplo `Queue w/ Dead Letter Queue`
+
+![](image/queue-dlq.png)
+
+Agora podemos copiar e implementar no arquivo `./main.tf`.
+
+
+```hcl
+module "s3" {
+  source         = "./modules/s3"
+  s3_bucket_name = "tutorial-rocketset-iac"
+  s3_tags   = {
+    Iac = true
+  }
+}
+
+module "cloudfront" {
+  source             = "./modules/cloudfront"
+  bucket_domain_name = module.s3.bucket_domain_name
+  origin_id          = module.s3.bucket_id
+  cdn_tags   = {
+    Iac = true
+  }
+  depends_on = [
+    module.s3
+  ]
+}
+
+module "sqs" {
+  source          = "terraform-aws-modules/sqs/aws"
+  name            = "tutorial-rocketset-sqs"
+  create_dlq      = true
+  tags            = {
+    Iac = true
+  }
+}
+```
+
+Após a inclusão é necessário rodar o comando `terraform init` para realizar o install do `sqs` e rodar o comando `terraform plan`
+
+Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
+
+![](image/aws-sqs.png)
+
+
+OK como foi apenas uma exemplificação de consumo de um module vaoms retiara do nosso tutorial.
+
+Remova a implementa ção do arquivo `./main.tf`.
+
+```hcl
+module "s3" {
+  source         = "./modules/s3"
+  s3_bucket_name = "tutorial-rocketset-iac"
+  s3_tags   = {
+    Iac = true
+  }
+}
+
+module "cloudfront" {
+  source             = "./modules/cloudfront"
+  bucket_domain_name = module.s3.bucket_domain_name
+  origin_id          = module.s3.bucket_id
+  cdn_tags   = {
+    Iac = true
+  }
+  depends_on = [
+    module.s3
+  ]
+}
+```
+
+Após a remoção é necessário rodar o comando `terraform init` e rodar o comando `terraform plan`
+
+Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
+
+12. Implementando datasource para o modules
+
+
+* Crie um arquivo `datasources.tf` no path `modules\cloudfront` 
+* Adicione como o do exemplo:
+
+##obs : é necessário criar o recurso primeiro na aws e logo após criar o datasource.
+
+```hcl
+data "aws_cloudfront_distribution" "cloudfront" {
+    id = aws_cloudfront_distribution.cloudfront.id
+}
+```
+
+* Crie um arquivo `datasources.tf` no path `modules\s3` 
+* Adicione como o do exemplo:
+
+##obs : é necessário criar o recurso primeiro na aws e logo após criar o datasource.
+
+```hcl
+data "aws_s3_bucket" "bucket_to_cloudfront" {
+    bucket = "${var.s3_bucket_name}-${terraform.workspace}"
+}
+```
+
+Output para o cloudfront (Saidas dos comandos apply)
+
+* Crie um arquivo `outputs.tf` no path `modules\cloudfront` 
+* Adicione como o do exemplo:
+
+```hcl
+output cdn_domain_name {
+  value       = data.aws_cloudfront_distribution.cloudfront.domain_name
+  sensitive   = false
+  description = "Nome de domínio do Cloudfront"
+  depends_on  = []
+}
+
+output cdn_id {
+  value       = data.aws_cloudfront_distribution.cloudfront.id
+  sensitive   = false
+  description = "Id do Cloudfront"
+  depends_on  = []
+}
+```
+
+Agora é necessário criarmos um aoutput geral para o projeto.
+
+* Crie um arquivo `outputs.tf` no path `./` 
+* Adicione como o do exemplo:
+
+```hcl
+output s3_domain_name {
+  value       = module.s3.bucket_domain_name
+  sensitive   = false
+  description = "Nome de domínio do bucket S3"
+}
+
+output cdn_domain {
+  value       = module.cloudfront.cdn_domain_name
+  sensitive   = false
+  description = "Nome de domínio do cloudfront"
+}
+
+```
+
+13. Configurando o WebSite Configuration para o S3
+
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_website_configuration
+
+* Adicione como o do exemplo no path `./modules/s3/main.tf` 
+
+```hcl
+resource "aws_s3_bucket" "bucket_to_cloudfront" {
+  bucket = "${var.s3_bucket_name}-${terraform.workspace}"
+
+  tags = var.s3_tags
+}
+
+resource "aws_s3_bucket_website_configuration" "bucket_to_cloudfront" {
+  bucket = aws_s3_bucket.bucket_to_cloudfront.bucket
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html"
+  }
+
+  depends_on = [
+    aws_s3_bucket.bucket_to_cloudfront
+  ]
+}
+```
+
+Após a inclusão podemos rodar o comando `terraform plan`
+
+![](image/website-s3.png)
+
+
+
