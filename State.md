@@ -202,7 +202,7 @@ Para Excluir um recuros especifico devemos rodar o seguinte comando:
  exemplo : 
  `PATH` =  module.s3.aws_s3_bucket.bucket_to_cloudfront
 
- ![](image\example_destroy_target.png)
+ ![](image/example_destroy_target.png)
 
 
  ## Criando o gitignore

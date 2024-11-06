@@ -74,7 +74,7 @@ O que é?
 * Elimina a necessidade de integração com serviços externos
 * Na conta free do gifthub conseguimos utilizar essa ferramenta, tendo 2.000 minutos por mês para utilizar.
 
-### Componebtes
+### Componentes
 
 * Workflow (Local onde é descrito todo o processo de automação)
 * Actions (Tasks que contemplam o Workflow )
@@ -189,16 +189,16 @@ Agora podemos realizar um commit na branch main.
 `git commit -m "new: add first configuration for actions"`
 `git push`
 
-![](image\first-commit-actions-steps.png)
+![](image/first-commit-actions-steps.png)
 
 
 Após executar o commit vamos consultar o repositório no github. No site vamos navegar até a aba Action.
 
-![](image\log-actions-error.png)
+![](image/log-actions-error.png)
 
 Vimos que ao executar a ação foi gerado um log de erro :
 
-![](image\error-action-trigger.png)
+![](image/error-action-trigger.png)
 
 Por que?
 
@@ -236,15 +236,15 @@ Agora podemos realizar um commit na branch main.
 `git push`
 
 
-![](image\commit-trigger-actions.png)
+![](image/commit-trigger-actions.png)
 
 
-![](image\run-ok-pipeline.png)
+![](image/run-ok-pipeline.png)
 
 
-![](image\job-run-action.png)
+![](image/job-run-action.png)
 
-![](image\first-step-job-action.png)
+![](image/first-step-job-action.png)
 
 
 Agora vamos avançar em nosso script incluindo as configurações refrenetes a linguagem que nossa api foi desenvolvida.
@@ -253,9 +253,9 @@ Para isso vamos consultar novamente o site https://github.com/marketplace
 
 Vamos pesquisar por `https://github.com/marketplace`
 
-![](image\node-js-actions.png)
+![](image/node-js-actions.png)
 
-![](image\setup-node-js-environment.png)
+![](image/setup-node-js-environment.png)
 
 Logo vamos modificar o arquivo `.github\workflows\ci.yml` com o seguinte trecho.
  
@@ -361,11 +361,10 @@ Essa abordagem ajuda a garantir que o código funcione corretamente em ambas as 
 
 Agora podemos realizar um commit na branch main.
 
-``
+
 `git add .`
 `git commit -m "new: add configure matrix strategy"`
 `git push`
 
 
-![](image\running-matrex-strategy.png)
-
+![](image/running-matrex-strategy.png)
