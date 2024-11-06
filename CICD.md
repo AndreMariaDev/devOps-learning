@@ -2,7 +2,7 @@
 
 ## Entrega de Valor
 
-Sem CICD 
+Sem CI/CD 
 * Time de desenvolvimento desenvolvem 
 * Time de infra disponibiliza (ação manual)
 * Correções mais demoradas 
@@ -35,7 +35,7 @@ Como Funciona?
 * Inicia-se todo o processo de construção 
 * Instalação de dependências, builds e testes
 
-### CI (Continuous Delivery)
+### CD (Continuous Delivery)
 
 O que é?
 
