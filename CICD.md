@@ -678,3 +678,5 @@ Agora podemos realizar um commit na branch main.
 
 
 ![](image/push-latest-dockerhub.png)
+
+
