@@ -363,8 +363,318 @@ Agora podemos realizar um commit na branch main.
 
 
 `git add .`
+
 `git commit -m "new: add configure matrix strategy"`
+
 `git push`
 
 
 ![](image/running-matrex-strategy.png)
+
+
+## Container Registry
+
+É necessário criar uma conta no  https://hub.docker.com/explore
+
+
+
+No `CI.yaml` nós vamos basicamente adicionar um `Step`, vamos chamar step de `build docker image` e vamos adicionar o comando  `run` sem uma action.
+A máquina Ubuntu já possui o docker pré-instalado. Desta forma vamos editar o arquivo `CI.yaml`.
+
+```hcl
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  build:
+    name: 'Build and Push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [ 18, 20 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup node | ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+      - name: Generate tag
+        id: generate_tag
+        run: |
+          SHA=$(echo $GITHUB_SHA | head -c7)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Build docker image
+        run: docker build -t rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .
+```
+
+Explicando : 
+- name: Generate tag:
+
+    `Nome da etapa`: "Generate tag". Esta etapa cria uma tag curta baseada no hash de confirmação (SHA) do commit atual.
+    
+    `id`: generate_tag: Define um identificador para a etapa, permitindo que suas saídas sejam usadas em outras etapas.
+    
+    run::
+        
+    `SHA=$(echo $GITHUB_SHA | head -c7)`: Extrai os primeiros 7 caracteres do hash do commit `(GITHUB_SHA)`, que é uma variável de ambiente do GitHub Actions.
+    
+    `echo "sha=$SHA" >> $GITHUB_OUTPUT`: Armazena o valor da variável SHA no GITHUB_OUTPUT, para que possa ser referenciada em etapas posteriores.
+
+- name: Build docker image:
+
+    `Nome da etapa`: "Build docker image". Esta etapa constrói uma imagem Docker.
+    
+    `run: docker build -t rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .` :  docker build: Constrói a imagem Docker.
+
+    `-t rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }}` : Define a tag da imagem com o nome rocketseat-ci-api seguido pela tag gerada com a saída da etapa anterior (os primeiros 7 caracteres do hash).
+    
+    `.` : Indica que o Dockerfile está no diretório raiz do projeto.
+
+
+Agora podemos realizar um commit na branch main.
+
+
+`git add .`
+
+`git commit -m "new: configure commit tag"`
+
+`git push`
+
+
+![](image/tag-github.png)
+
+![](image/workflow-tag.png)
+
+Agora vamos enviar a imagem criad para o Docker Hub.
+
+
+No Git Hub Marketplace vamos pesquisar por `docker login`
+https://github.com/marketplace?query=docker+login
+
+![](image/docker-login-result.png)
+
+![](image/example-docker-hub-login.png)
+
+
+No `CI.yaml` nós vamos basicamente adicionar um `Step`, vamos chamar step de `Login into the container registry` e vamos adicionar o comando  `uses` 
+
+```hcl
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  build:
+    name: 'Build and Push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [ 18, 20 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup node | ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+      - name: Generate tag
+        id: generate_tag
+        run: |
+          SHA=$(echo $GITHUB_SHA | head -c7)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Login into the container registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build docker image
+        run: docker build -t andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .
+
+      - name: Push image
+        run: docker push andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }}
+```
+
+
+Esse trecho de `login` é construído dessa forma para garantir que o GitHub Actions possa fazer login com segurança em um registro de contêiner (por exemplo, o Docker Hub) antes de executar comandos que exigem autenticação, como docker push. Vamos detalhar a construção de cada parte:
+Explicação por partes
+
+  `- name: Login into the container registry`
+      É uma descrição do passo no job do GitHub Actions. Ajuda a identificar a etapa específica quando você visualiza os logs da execução.
+
+  `uses: docker/login-action@v3`
+      Especifica a ação do GitHub Actions que será usada. Neste caso, a ação docker/login-action na versão v3 é uma ação oficial da comunidade que facilita o login em registros de contêineres. Essa ação encapsula o processo de execução de docker login, tornando-o mais simples e seguro.
+
+  `with:`
+      Define os parâmetros que serão passados para a ação docker/login-action.
+
+  `username: ${{ vars.DOCKERHUB_USERNAME }}`
+      username é o nome de usuário do Docker Hub que será usado para fazer login. vars.DOCKERHUB_USERNAME é uma variável de ambiente definida nas configurações do repositório, que contém o nome de usuário. Usar ${{ }} permite que o GitHub Actions acesse essa variável dinamicamente.
+
+  `password: ${{ secrets.DOCKERHUB_TOKEN }}`
+      password é a senha ou token de acesso que será usado para autenticar o usuário. secrets.DOCKERHUB_TOKEN é um segredo armazenado com segurança no GitHub, que contém o token de acesso do Docker Hub. O uso de secrets é fundamental para proteger informações sensíveis, como senhas e tokens, garantindo que elas não fiquem expostas no código ou em logs.
+
+No trecho `run: docker build -t andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .` temos `andremariadevops/` por que ?
+
+No trecho `docker build -t andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .`, o andremariadevops é o nome do `namespace` ou `username` da sua conta no Docker Hub ou em um registro de contêiner. 
+
+Ele é necessário para garantir que a imagem seja criada com uma tag específica que inclua a referência de quem a está publicando.
+
+
+
+Para configurar o username e o password usados no GitHub Actions, você precisa definir as variáveis e segredos no repositório do GitHub. Aqui está como você pode fazer isso:
+1. vars.DOCKERHUB_USERNAME
+
+    vars se refere a variáveis de ambiente definidas no GitHub Actions. Você pode configurá-las diretamente no arquivo workflow ou por meio da interface do GitHub.
+
+Configuração via Interface do GitHub:
+
+    Vá até o repositório no GitHub.
+    Clique em Settings (Configurações).
+    No menu à esquerda, selecione Secrets and variables > Actions.
+    Clique em New repository variable.
+    Dê o nome DOCKERHUB_USERNAME e coloque o valor com seu nome de usuário do Docker Hub.
+    Salve a variável.
+
+![](image/create-secrets-variables-actions.png)
+
+![](image/user-secrety-git-hub.png)
+
+2. secrets.DOCKERHUB_TOKEN
+
+    secrets se refere a segredos que são armazenados de forma segura no GitHub e são usados para manter informações sensíveis, como tokens e senhas.
+
+Configuração de Segredos:
+
+    Vá até o repositório no GitHub.
+    Clique em Settings (Configurações).
+    No menu à esquerda, selecione Secrets and variables > Actions > Secrets.
+    Clique em New repository secret.
+    Dê o nome DOCKERHUB_TOKEN e cole o token de acesso ao Docker Hub. Esse token pode ser gerado nas configurações da sua conta no Docker Hub:
+        Vá para sua conta no Docker Hub.
+        Clique em Account Settings (Configurações da Conta).
+        Vá até Security (Segurança) e crie um Access Token.
+    Salve o segredo.
+
+![](image/account-docker-hub.png)
+
+![](image/create-token-docker-hub.png)
+
+Resumo
+
+    DOCKERHUB_USERNAME é configurado como uma variável no repositório.
+    DOCKERHUB_TOKEN é configurado como um segredo seguro para proteger suas credenciais.
+
+![](image/credention-was-created.png)
+
+
+
+Agora podemos realizar um commit na branch main.
+
+
+`git add .`
+
+`git commit -m "new: configure push image"`
+
+`git push`
+
+
+![](image/create-image-docker-hug-tag.png)
+
+![](image/action-run-tag.png)
+
+
+
+Agora vamos para as boas praticas :
+
+vamos consultar https://github.com/marketplace/actions/build-and-push-docker-images
+
+![](image/dockerhub-actions-tag-latest.png)
+
+Agora vamos altera o código:
+
+```hcl
+
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  build:
+    name: 'Build and Push'
+    runs-on: ubuntu-latest
+    # strategy:
+    #   matrix:
+    #     node: [ 18, 20 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      # - name: Setup node | ${{ matrix.node }}
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          # node-version: ${{ matrix.node }}
+          node-version: 18
+      - run: npm ci
+      - run: npm test
+
+      - name: Generate tag
+        id: generate_tag
+        run: |
+          SHA=$(echo $GITHUB_SHA | head -c7)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Login into the container registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }},andremariadevops/rocketseat-ci-api:latest
+      # - name: Build docker image
+      #   run: docker build -t andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .
+
+      # - name: Push image
+      #   run: docker push andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }}
+
+```
+
+Agora podemos realizar um commit na branch main.
+
+`git add .`
+
+`git commit -m "new: configure commit tag"`
+
+`git push`
+
+
+![](image/push-latest-dockerhub.png)
