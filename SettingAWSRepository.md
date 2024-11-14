@@ -109,7 +109,7 @@ provider "aws" {
 
 No terminal vamos rodar o seguinte comando :  `terraform init`. 
 
-Logo apos vamos criara um arquivo `iam.tf`
+Logo apos vamos criar um arquivo `iam.tf`
 
 vamos acessar o link : https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_openid_connect_provider
 
@@ -162,7 +162,7 @@ resource "aws_iam_openid_connect_provider" "oidc-git" {
 
 ## Role
 
-Agora vamos criara a role para preencher o `role-to-assume` no step `- name: Configure AWS Credentials` do arquivo `ci.yml`
+Agora vamos criar a role para preencher o `role-to-assume` no step `- name: Configure AWS Credentials` do arquivo `ci.yml`
 
 para isso vamos seguir os passos
 
