@@ -823,3 +823,63 @@ resource "aws_iam_role" "app-runner-role" {
 ```
 
 ### Deploy to App Runner
+
+Papel: Esse step faz o deploy da imagem Docker recém-criada para o serviço rocketseat-api no Amazon App Runner.
+
+Motivo: O App Runner é uma plataforma da AWS que facilita o deploy de aplicações baseadas em containers. Esse step garante que a aplicação esteja disponível e rodando em um ambiente de produção após a conclusão do build.
+
+``` hcl
+- name: Deploy to App Runner
+  id: deploy-apprunner
+  uses: awslabs/amazon-app-runner-deploy@main
+  with:
+    service: rocketseat-api
+    image: ${{ steps.build-docker-image.outputs.image }}
+    access-role-arn: arn:aws:iam::***************:role/app-runner-role
+    region: us-east-1
+    cpu: 1
+    memory: 2
+    port: 3000
+```
+
+Agora podemos altera o arquivo ci.yml
+
+Mas antes de implementar o `Deploy to App Runner` vamos implementar a indicação da imagem no `Build docker image`
+
+```
+      - name: Build docker image
+        id: build-docker-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ steps.generate_tag.outputs.sha }}
+        run: |
+          docker build -t $REGISTRY/rocketseat-ci:$TAG .
+          docker push $REGISTRY/rocketseat-ci:$TAG
+          IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+```
+No item "Construção e Push da Imagem Docker", o trecho:
+
+IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)
+echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+Tem como objetivo construir a URL da imagem Docker e armazená-la na variável de saída do GitHub Actions, para que a imagem gerada possa ser usada em etapas subsequentes, como o deploy.
+Explicação detalhada:
+
+IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG):
+
+  O que faz?: Esse comando cria a URL completa da imagem Docker que será armazenada no Amazon Elastic Container Registry (ECR). Ele junta o nome do repositório (rocketseat-ci) com o TAG gerado anteriormente para a imagem.
+      $REGISTRY é o valor obtido da saída do step de login no ECR, que representa o endpoint do repositório de imagens Docker (por exemplo, 123456789012.dkr.ecr.us-east-1.amazonaws.com).
+      $TAG é o hash do commit, gerado pelo step de "Generate tag", que é usado para identificar unicamente a versão da imagem. O resultado dessa operação seria algo como 123456789012.dkr.ecr.us-east-1.amazonaws.com/rocketseat-ci:abcd123, que é a tag única para a imagem Docker.
+
+  Motivo para a implementação: Criar essa URL completa é necessário para que o GitHub Actions possa referenciar a imagem no ECR de forma precisa. Em vez de gerar uma string manualmente em cada step subsequente, essa variável facilita a reutilização do valor da URL de forma dinâmica e sem erros, além de garantir que a imagem correta seja usada no deploy.
+
+echo "image=$IMAGE" >> $GITHUB_OUTPUT:
+
+  O que faz?: Esse comando grava a URL completa da imagem Docker gerada na variável de saída $GITHUB_OUTPUT. Essa variável de saída é uma maneira de comunicar o valor da variável IMAGE para outros steps do workflow no GitHub Actions.
+
+  A variável $GITHUB_OUTPUT é um arquivo especial que permite passar informações entre os steps do workflow. Quando você escreve no arquivo, qualquer step que o segue pode acessar o valor armazenado.
+
+  Motivo para a implementação: A URL da imagem Docker precisa ser acessada em etapas subsequentes, como o deploy. Armazená-la no arquivo de saída permite que outras etapas, como o deploy para o App Runner, usem essa informação sem ter que reprocessar ou reconstituir a URL novamente. Isso também melhora a manutenção e a legibilidade do workflow, pois a URL é calculada uma vez e passada diretamente.
+
+  
