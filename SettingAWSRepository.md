@@ -860,13 +860,14 @@ Mas antes de implementar o `Deploy to App Runner` vamos implementar a indicaçã
 ```
 No item "Construção e Push da Imagem Docker", o trecho:
 
-IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)
-echo "image=$IMAGE" >> $GITHUB_OUTPUT
+- **`IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)`**
+
+- **`echo "image=$IMAGE" >> $GITHUB_OUTPUT`**
 
 Tem como objetivo construir a URL da imagem Docker e armazená-la na variável de saída do GitHub Actions, para que a imagem gerada possa ser usada em etapas subsequentes, como o deploy.
 Explicação detalhada:
 
-IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG):
+- **`IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)`**:
 
   O que faz?: Esse comando cria a URL completa da imagem Docker que será armazenada no Amazon Elastic Container Registry (ECR). Ele junta o nome do repositório (rocketseat-ci) com o TAG gerado anteriormente para a imagem.
       $REGISTRY é o valor obtido da saída do step de login no ECR, que representa o endpoint do repositório de imagens Docker (por exemplo, 123456789012.dkr.ecr.us-east-1.amazonaws.com).
@@ -874,12 +875,11 @@ IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG):
 
   Motivo para a implementação: Criar essa URL completa é necessário para que o GitHub Actions possa referenciar a imagem no ECR de forma precisa. Em vez de gerar uma string manualmente em cada step subsequente, essa variável facilita a reutilização do valor da URL de forma dinâmica e sem erros, além de garantir que a imagem correta seja usada no deploy.
 
-echo "image=$IMAGE" >> $GITHUB_OUTPUT:
+- **`echo "image=$IMAGE" >> $GITHUB_OUTPUT`**:
 
   O que faz?: Esse comando grava a URL completa da imagem Docker gerada na variável de saída $GITHUB_OUTPUT. Essa variável de saída é uma maneira de comunicar o valor da variável IMAGE para outros steps do workflow no GitHub Actions.
 
   A variável $GITHUB_OUTPUT é um arquivo especial que permite passar informações entre os steps do workflow. Quando você escreve no arquivo, qualquer step que o segue pode acessar o valor armazenado.
 
-  Motivo para a implementação: A URL da imagem Docker precisa ser acessada em etapas subsequentes, como o deploy. Armazená-la no arquivo de saída permite que outras etapas, como o deploy para o App Runner, usem essa informação sem ter que reprocessar ou reconstituir a URL novamente. Isso também melhora a manutenção e a legibilidade do workflow, pois a URL é calculada uma vez e passada diretamente.
+**Motivo**: Motivo para a implementação: A URL da imagem Docker precisa ser acessada em etapas subsequentes, como o deploy. Armazená-la no arquivo de saída permite que outras etapas, como o deploy para o App Runner, usem essa informação sem ter que reprocessar ou reconstituir a URL novamente. Isso também melhora a manutenção e a legibilidade do workflow, pois a URL é calculada uma vez e passada diretamente.
 
-  
