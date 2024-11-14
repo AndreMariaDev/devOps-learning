@@ -824,26 +824,6 @@ resource "aws_iam_role" "app-runner-role" {
 
 ### Deploy to App Runner
 
-Papel: Esse step faz o deploy da imagem Docker recém-criada para o serviço rocketseat-api no Amazon App Runner.
-
-Motivo: O App Runner é uma plataforma da AWS que facilita o deploy de aplicações baseadas em containers. Esse step garante que a aplicação esteja disponível e rodando em um ambiente de produção após a conclusão do build.
-
-``` hcl
-- name: Deploy to App Runner
-  id: deploy-apprunner
-  uses: awslabs/amazon-app-runner-deploy@main
-  with:
-    service: rocketseat-api
-    image: ${{ steps.build-docker-image.outputs.image }}
-    access-role-arn: arn:aws:iam::***************:role/app-runner-role
-    region: us-east-1
-    cpu: 1
-    memory: 2
-    port: 3000
-```
-
-Agora podemos altera o arquivo ci.yml
-
 Mas antes de implementar o `Deploy to App Runner` vamos implementar a indicação da imagem no `Build docker image`
 
 ```
@@ -885,3 +865,24 @@ Explicação detalhada:
 
   **Motivo** para a implementação: A URL da imagem Docker precisa ser acessada em etapas subsequentes, como o deploy. Armazená-la no arquivo de saída permite que outras etapas, como o deploy para o App Runner, usem essa informação sem ter que reprocessar ou reconstituir a URL novamente. Isso também melhora a manutenção e a legibilidade do workflow, pois a URL é calculada uma vez e passada diretamente.
 
+**`Deploy to App Runner`**
+
+Papel: Esse step faz o deploy da imagem Docker recém-criada para o serviço rocketseat-api no Amazon App Runner.
+
+Motivo: O App Runner é uma plataforma da AWS que facilita o deploy de aplicações baseadas em containers. Esse step garante que a aplicação esteja disponível e rodando em um ambiente de produção após a conclusão do build.
+
+``` hcl
+- name: Deploy to App Runner
+  id: deploy-apprunner
+  uses: awslabs/amazon-app-runner-deploy@main
+  with:
+    service: rocketseat-api
+    image: ${{ steps.build-docker-image.outputs.image }}
+    access-role-arn: arn:aws:iam::***************:role/app-runner-role
+    region: us-east-1
+    cpu: 1
+    memory: 2
+    port: 3000
+```
+
+Agora podemos altera o arquivo ci.yml
