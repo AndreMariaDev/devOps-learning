@@ -481,26 +481,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-
-
-
-      # - name: Login into the container registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # - name: Build and Push
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     push: true
-      #     tags: andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }},andremariadevops/rocketseat-ci-api:latest
-      # - name: Build docker image
-      #   run: docker build -t andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }} .
-
-      # - name: Push image
-      #   run: docker push andremariadevops/rocketseat-ci-api:${{ steps.generate_tag.outputs.sha }}
-
 ```
 
 podemos ver que o campo `role-to-assume` foi preenchido com o valor disponibilizado pelo `ecr_role`
@@ -509,12 +489,12 @@ podemos ver que o campo `role-to-assume` foi preenchido com o valor disponibiliz
 
 ## ECR
 
-Agora vamos criar o recurso ECR para tal vamos acesssar o site do terraform.
+Agora vamos criar o recurso ECR. Para tal vamos acesssar o site do terraform.
 
 https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecr_repository
 
 
-Vemos na doc que é super simple, logo vamos criar um novo arquivo pasta rocketseat.iac
+Vemos na doc que é super simples, logo vamos criar um novo arquivo pasta rocketseat.iac
 
 aqui vamos criar um arquivo ecr.tf e incluir o seguinte script:
 
@@ -675,7 +655,8 @@ resource "aws_iam_role" "app-runner-role" {
 
 ```
 
-para preencher o `assume_role_policy` vamos ao console aws e no produtoi IAM 
+Para preencher o `assume_role_policy` vamos ao console aws e no produto IAM >> Role>>  Create role.
+Aqui vamos copiar trecho destacado na imagem abaixo:
 
 ![](image/custom-trust-policy.png)
 
@@ -730,16 +711,6 @@ O parâmetro `managed_policy_arns` define as políticas gerenciadas pela AWS que
 **Motivo**: Essa política é necessária para permitir que o serviço App Runner acesse imagens de contêiner armazenadas no Amazon ECR. Isso é essencial para que o App Runner possa executar aplicações que dependem de imagens armazenadas nesse repositório.
 
 
-A inclusão do `build.apprunner.amazonaws.com` como `Principal` permite que o serviço App Runner obtenha um token temporário através da chamada `sts:AssumeRole` e execute ações com as permissões definidas nessa role.
-
-O `Principal` em uma política de assunção define quem ou o que tem permissão para assumir a role. Ele pode ser um usuário, um grupo, uma entidade federada ou, neste caso, um serviço AWS.
-
-
-O `sts:AssumeRole` é uma ação do AWS Security Token Service (STS) que permite que uma entidade (como um usuário, serviço ou aplicação) assuma uma role IAM (Identity and Access Management). Esse processo gera credenciais temporárias que a entidade pode usar para acessar recursos da AWS com as permissões especificadas pela role assumida.
-
-O `managed_policy_arns` especifica uma política gerenciada que é anexada à role.
-
-A política `AmazonEC2ContainerRegistryReadOnly` concede permissões de leitura ao Amazon ECR (Elastic Container Registry). Isso é necessário para que o serviço App Runner possa puxar imagens de contêiner do ECR para implantar e executar aplicações.
 
 ### Por final teremos :
 
