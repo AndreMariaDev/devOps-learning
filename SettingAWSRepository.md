@@ -363,7 +363,7 @@ resource "aws_iam_role" "ecr_role" {
   }
 }
 ```
-## Explicação dos Statements na Política do Recurso `aws_iam_role "app-runner-role"`
+## Explicação dos Statements na Política do Recurso `aws_iam_role "ecr_role"`
 #### Assume Role Policy (`assume_role_policy`)
 Esta política define quem pode assumir a função. É utilizada para conceder permissões a um provedor de identidade para que possa solicitar tokens de segurança do AWS Security Token Service (STS) para essa função.
 
