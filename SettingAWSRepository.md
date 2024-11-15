@@ -715,6 +715,26 @@ O parâmetro `managed_policy_arns` define as políticas gerenciadas pela AWS que
 ### Por final teremos :
 
 ```hcl
+#ecr.tf
+
+resource "aws_ecr_repository" "rocketseat-ci-api" {
+  name                 = "rocketseat-ci"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    IAC = "True"
+  }
+}
+
+```
+
+```hcl
+#iam.tf
+
 resource "aws_iam_openid_connect_provider" "oidc-git" {
   url = "https://token.actions.githubusercontent.com"
 
