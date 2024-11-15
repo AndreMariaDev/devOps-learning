@@ -886,3 +886,16 @@ Motivo: O App Runner é uma plataforma da AWS que facilita o deploy de aplicaç�
 ```
 
 Agora podemos altera o arquivo ci.yml
+
+
+
+
+
+
+
+
+![](image/deploy-app-runner-connect-app-runner-role.png)
+
+![](image/build-docker-image-ecr-repository.png)
+
+![](image/diagrama-macro.png)
