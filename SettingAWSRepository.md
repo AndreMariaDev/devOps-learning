@@ -894,8 +894,6 @@ Agora podemos altera o arquivo ci.yml
 
 
 
-![](image/deploy-app-runner-connect-app-runner-role.png)
-
-![](image/build-docker-image-ecr-repository.png)
+![](image/connection-ci-iam-ecr.png)
 
 ![](image/diagrama-macro.png)
