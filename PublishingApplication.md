@@ -1181,3 +1181,82 @@ Pensando em um fluxo geral temos o seguinte diagrama:
    - **Passo 5**: Configurar o workflow do GitHub Actions para integrar com App Runner e acionar a nova imagem.
 
 
+### **Outras melhorias no CI**
+
+```hcl
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    name: 'Build and Push'
+    runs-on: ubuntu-latest
+    # strategy:
+    #   matrix:
+    #     node: [ 18, 20 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      # - name: Setup node | ${{ matrix.node }}
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          # node-version: ${{ matrix.node }}
+          node-version: 18
+      - run: npm ci
+      - run: npm test
+
+      - name: Generate tag
+        id: generate_tag
+        run: |
+          SHA=$(echo $GITHUB_SHA | head -c7)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::221082190038:role/ecr_role
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build docker image
+        id: build-docker-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ steps.generate_tag.outputs.sha }}
+        run: |
+          docker build -t $REGISTRY/rocketseat-ci:$TAG .
+          docker push $REGISTRY/rocketseat-ci:$TAG
+          docker tag $REGISTRY/rocketseat-ci:$TAG $REGISTRY/rocketseat-ci:latest
+          docker push $REGISTRY/rocketseat-ci:latest
+          IMAGE=$(echo $REGISTRY/rocketseat-ci:$TAG)
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Deploy to App Runner
+        id: deploy-apprunner
+        uses: awslabs/amazon-app-runner-deploy@main
+        with:
+          service: rocketseat-api
+          image: ${{ steps.build-docker-image.outputs.image }}
+          access-role-arn : arn:aws:iam::221082190038:role/app-runner-role
+          region: us-east-1
+          cpu : 1
+          memory : 2
+          port: 3000
+          wait-for-service-stability-seconds: 180
+
+      - name: App Runner Check
+        run: echo "App Runner running... ${{ steps.deploy-apprunner.outputs.service-url }}"
+```
