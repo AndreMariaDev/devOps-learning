@@ -81,13 +81,13 @@ jobs:
 
 ## Explicação dos itens inseridos
 
-`- name: Configure AWS Credentials`: Configura as credenciais da AWS para permitir operações com serviços AWS.
+- **name**: `Configure AWS Credentials`: Configura as credenciais da AWS para permitir operações com serviços AWS.
 
   `uses: aws-actions/configure-aws-credentials@v4`: Ação que configura as credenciais da AWS.
   
   `with:`: Especifica a região (us-east-1) e um campo `role-to-assume` que está vazio (deveria conter o ARN de um papel se necessário).
 
-`- name: Login to Amazon ECR`: Faz login no Amazon Elastic Container Registry (ECR) para permitir o push de imagens de contêiner.
+- **name**: `Login to Amazon ECR`: Faz login no Amazon Elastic Container Registry (ECR) para permitir o push de imagens de contêiner.
 
   `id: login-ecr`: Define um ID para a etapa.
   
