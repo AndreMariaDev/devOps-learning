@@ -1,19 +1,6 @@
-Criando recursos utilizando IAC
-
-Configurando roles
-
-Criando permissões na Role
-
-Migrando para o ECR
-
-Configurando serviço do container
-
-Deploy da aplicação
-
-![](image/PublishingApplication/diagrama-macro.png)
-
 
 # Configurando repositório AWS
+![](image/PublishingApplication/diagrama-macro.png)
 
 ## 1- Criar a estrutura de login.
 
