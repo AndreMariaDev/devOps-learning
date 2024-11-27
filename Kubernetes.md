@@ -766,7 +766,7 @@ Você pode testar a recriação automática dos pods com os seguintes comandos:
 ## ✨ Criando um ReplicaSet
 
 #### Usando o ReplicaSet
-```hcl
+```yaml
 apiVersion: apps/v1
 kind: ReplicaSet
 
@@ -882,6 +882,7 @@ kubectl apply -f replicaset.yaml
 
 
 ## ✨ Problemas de um ReplicaSet
+
 #### Problemas de Usar o ReplicaSet no Kubernetes
 
 O objeto **`"ReplicaSet"`** no Kubernetes é responsável por garantir que um número especificado de réplicas de um pod esteja sempre em execução. No entanto, seu uso direto pode trazer alguns problemas e limitações, principalmente quando comparado a outros recursos, como o **`"Deployment**. Abaixo estão os principais problemas e implicações de usar o ReplicaSet no comando fornecido:
@@ -926,10 +927,277 @@ Embora o ReplicaSet seja a base para recursos como o Deployment, seu uso direto 
 
 Na maioria dos casos, é mais adequado usar um **`"Deployment"`** , que oferece um gerenciamento mais robusto, eficiente e seguro para aplicações no Kubernetes.
 
+**`"LOGO O REPLICASET NÃO É UM OBJETOS DE IMPLANTAÇÃO MAS SIM UMA CONTROLADOR DE NÚMERO DE PODS. ELE NÃO TEM SUPORTE A TROCA DE TAGS."`**
 
 ## ✨ Criando um Deployment
+
+Agora para resolver o problema visto no uso do **`"ReplicaSet"`** vamos criar um novo arquivo `deployment.yaml`
+
+Após a criação do arquivo vamos preencher com o seguinte script:
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx
+
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:stable-alpine3.20-perl
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 80
+
+
+```
+
+```bash
+kubectl apply -f deployment.yaml -n first-app
+```
+
+![](image/Kubernetes/overview-deployment-pods.png)
+
+Vimos que a versão da imagem é `nginx:stable-alpine3.20-perl`
+![](image/Kubernetes/overview-deployment-pod-version.png)
+
+
+Para testar o ideia de troca de versão vamos editar o arquivo `deployment.yaml` substituindo `nginx:stable-alpine3.20-perl` para `nginx:mainline-alpine3.20-slim`
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx
+
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:mainline-alpine3.20-slim
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 80
+
+
+```
+
+![](image/Kubernetes/overview-deployment-pod-version-change.png)
 
 
 ## ✨ Acessando Pods
 
+Componente da interface de rede onde os acessos pelo Client é distribuido entre os pods.
+
+Agora para resolver o problema de acesso vamos criar um novo arquivo `service.yaml`
+
+Após a criação do arquivo vamos preencher com o seguinte script:
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx
+
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:stable-alpine3.20-perl
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 80
+
+
+```
+
+### Explicação Detalhada do Script YAML
+
+O script abaixo descreve um recurso `Service` no Kubernetes, que atua como uma abstração para expor aplicações executadas em um conjunto de pods.
+
+#### Linha a Linha do Script
+
+#### Cabeçalho do Documento
+
+```yaml
+apiVersion: v1
+```
+- **apiVersion**: Define a versão da API Kubernetes utilizada para este recurso. Aqui, `v1` é a versão para recursos básicos como `Service`.
+
+```yaml
+kind: Service
+```
+- **kind**: Especifica o tipo de recurso Kubernetes. Neste caso, é um `Service`.
+
+```yaml
+metadata:
+  name: nginx-svc
+```
+- **metadata**: Contém informações adicionais sobre o recurso.
+  - **name**: Define o nome do `Service`, neste caso, `nginx-svc`.
+
+### Especificações do Service
+
+```yaml
+spec:
+```
+- **spec**: Define a configuração detalhada do recurso. Tudo que está dentro de `spec` refere-se à implementação do `Service`.
+
+```yaml
+  type: ClusterIP
+```
+- **type**: Define como o `Service` será exposto.
+  - **ClusterIP**: O padrão. Permite o acesso ao `Service` apenas dentro do cluster.
+
+```yaml
+  selector:
+    app: nginx
+```
+- **selector**: Define os critérios para selecionar os pods associados ao `Service`.
+  - **app: nginx**: Seleciona todos os pods com o rótulo `app: nginx`.
+
+```yaml
+  ports:
+```
+- **ports**: Define as portas expostas pelo `Service`.
+
+#### Configuração de Portas
+
+```yaml
+  - port: 80
+```
+- **port**: Porta em que o `Service` estará escutando. Aqui, é a porta `80`.
+
+```yaml
+    targetPort: 80
+```
+- **targetPort**: Porta no container para onde o tráfego será redirecionado. Aqui, também é `80`.
+  - Esta porta deve corresponder ao **containerPort** definido no manifesto do `Deployment` (por exemplo, `deployment.yaml`).
+
+---
+
+#### Resumo do Fluxo
+1. **Criar o Service**:
+   - O Kubernetes identifica que é um recurso do tipo `Service`.
+2. **Filtrar Pods**:
+   - Usa o seletor `app: nginx` para encontrar os pods associados.
+3. **Redirecionar o Tráfego**:
+   - O tráfego enviado para o `Service` na porta `80` é redirecionado para a porta `80` nos containers selecionados.
+
+
+
+
+```bash
+kubectl apply -f service.yaml -n first-app
+```
+
+![](image/Kubernetes/service-view.png)
+
+
+para acessar vamos rodar o seguinte comando:
+
+```bash
+kubectl port-forward svc/nginx-svc -n first-app 8080:80
+```
+
+### Explicação detalhada do comando
+**Comando:**  
+`kubectl port-forward svc/nginx-svc -n first-app 8080:80`
+
+#### 1. **Contexto**  
+Este comando é usado para criar um túnel local que encaminha o tráfego de uma porta no computador do usuário para uma porta em um serviço (Service) no cluster Kubernetes.
+
+#### 2. **Componentes do comando**  
+
+#### `kubectl`
+É a ferramenta de linha de comando usada para interagir com clusters Kubernetes.  
+
+#### `port-forward`
+É um subcomando do `kubectl` que permite mapear uma porta do ambiente local para um pod ou serviço no cluster Kubernetes.  
+- Com isso, você pode acessar recursos do cluster que normalmente não estariam expostos publicamente.  
+
+#### `svc/nginx-svc`
+Indica que o redirecionamento será feito para um **Service** chamado `nginx-svc`.  
+- O prefixo `svc/` é usado para especificar que o alvo é um **Service**.  
+
+#### `-n first-app`
+Especifica o namespace onde o **Service** está localizado.  
+- Neste caso, o namespace é `first-app`.  
+- Se este argumento fosse omitido, o comando usaria o namespace padrão (`default`).  
+
+#### `8080:80`
+Define o mapeamento das portas:  
+- `8080`: Porta local do computador onde o tráfego será recebido.  
+- `80`: Porta do serviço dentro do cluster Kubernetes para a qual o tráfego será encaminhado.  
+- O tráfego que chega em `localhost:8080` no ambiente local será redirecionado para o serviço `nginx-svc` na porta `80`.
+
+---
+
+#### 3. **Uso prático**  
+Após executar este comando, você pode acessar o serviço `nginx-svc` diretamente no navegador ou com ferramentas como `curl` via:  
+
+http://localhost:8080
+
+#### 4. **Cenários de uso comuns**
+- Testar um serviço no cluster sem configurá-lo como um recurso publicamente acessível.  
+- Depuração ou desenvolvimento local, acessando serviços internos do Kubernetes de forma segura.  
+
+---
+
+#### 5. **Notas importantes**
+- O comando precisa de acesso ao cluster Kubernetes configurado no `kubectl`.  
+- Certifique-se de que a porta local (8080) não esteja em uso por outro processo antes de executar o comando.  
+- Se o Service estiver configurado corretamente no cluster, o tráfego será redirecionado para os pods associados a ele.
+
+
+Como vimos solucionamos o acesso interno aos pods , não não solucionamos o problema de acesso externo.
 ✨
