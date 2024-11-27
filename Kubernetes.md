@@ -319,7 +319,7 @@ first-cluster-rocketseat-control-plane   Ready    control-plane   16m   v1.31.2
 PS C:\Repo\k8s\first-cluster> 
 ```
 
-agora vamos abiri o lens.
+Agora vamos abiri o lens.
 
 ![](image/Kubernetes/start-lens.png)
 
@@ -687,15 +687,14 @@ Isso redirecionará as solicitações para o pod `nginx` na porta `80` dentro do
 
 ## ✨ Problemas e próximos passos
 
----
-#### O Que Acontece ao Deletar os Pods Criados?
+#### O Que Acontece ao deleta o `Pod` criados?
 
 Ao deletar o Pod:
 
 1. **`"Recriação Automática"`**: Não ocorrerá recriação automática porque o Pod foi criado diretamente sem estar associado a um controlador.
 2. **`"Perda Permanente"`**: Uma vez deletado, o Pod e qualquer dado nele contido (se não houver volumes persistentes configurados) serão permanentemente removidos.
 
-Usar um ReplicaSet poderia ser uma solução paliativa para garantir a recriação automática de um Pod caso ele seja excluído. 
+Usar um `"ReplicaSet"` poderia ser uma solução paliativa para garantir a recriação automática de um Pod caso ele seja excluído. 
 
 #### O Que Acontece ao Deletar os Pods Criados por um ReplicaSet?
 
@@ -798,12 +797,6 @@ spec:
               memory: 128Mi
 ```
 
-Após executar o comando:
-
-```bash
-`kubectl apply -f replicaset.yaml`
-```
-
 #### Explicação do Comando ReplicaSet
 
 O comando especificado é um manifesto em formato YAML usado para criar um **`"ReplicaSet"`** no Kubernetes. 
@@ -875,6 +868,12 @@ Define as solicitações e limites de recursos para o container.
 #### Resumo
 Este manifesto cria um **`"ReplicaSet"`** chamado `nginx`, que mantém 5 réplicas de um pod executando um container NGINX baseado na imagem `nginx:stable-alpine3.20-perl`. 
 Os pods são configurados para escutar na porta 80 e possuem restrições de CPU e memória definidas para otimizar o uso de recursos do cluster.
+
+Agora vamos executar o comando:
+
+```bash
+kubectl apply -f replicaset.yaml
+```
 
 ![](image/Kubernetes/create-replicas.png)
 
