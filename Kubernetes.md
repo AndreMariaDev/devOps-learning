@@ -1368,11 +1368,312 @@ export class AppController {
 }
 ```
 
+NO cenário de CI/CD teriamos :
+
+- 1 Commit 
+- 2 Commit to build image
+- 3 push
+- 4 delevery
+
+Como esse fluxo ainda não está automatizado vamos realizar manualmente os passos.
+
+Mas antes vamos pensar sobre version e sua importância.
+
+### Importância do Versionamento de Imagens Docker
+
+- Por que versionar imagens Docker?
+
+Manter o versionamento de imagens Docker é uma prática essencial para garantir a consistência, rastreabilidade e controle em ambientes de desenvolvimento, teste e produção. 
+
+### Benefícios do Versionamento:
+
+1. **Consistência entre Ambientes:**
+   - Usar uma tag específica, como `v1.0.0` ou `1.2.3`, assegura que o ambiente de produção utilize exatamente a mesma versão de imagem que foi testada em desenvolvimento e homologação.
+   - Evita problemas relacionados a mudanças inesperadas em imagens mais genéricas, como `latest`.
+
+2. **Rastreabilidade:**
+   - O versionamento permite identificar rapidamente qual versão da aplicação está em execução. Isso é fundamental para depuração, rollback e auditorias.
+   - Sem versionamento, pode ser difícil ou impossível rastrear qual código ou configuração está sendo usado em um ambiente.
+
+3. **Controle de Atualizações:**
+   - Com imagens versionadas, atualizações podem ser planejadas e testadas cuidadosamente antes de serem aplicadas.
+   - Reduz a probabilidade de interrupções ou falhas causadas por mudanças inesperadas.
+
+
+### Conclusão
+
+O versionamento de imagens Docker é crucial para garantir controle e estabilidade em ambientes de desenvolvimento e produção. A configuração do `"imagePullPolicy"`, por sua vez, regula como e quando as imagens devem ser atualizadas, complementando as boas práticas de versionamento e evitando problemas causados por mudanças inesperadas.
+
+
+
+Logo vamos testar o cenário onde realizamos o `build` e `push` sem altera a version de v1 para v2.
+
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v1 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v1
+
+```
+
+![](image/Kubernetes/build-push-not-change-version.png)
+
+
+![](image/Kubernetes/overview-image-vergion.png)
+
+Agora será que no Kubernetes vamos conseguir fazer o deployment ?
+
+Para testar vamos tentar acessar o novo end-point http://localhost:64730/example-k8s
+
+
+![](image/Kubernetes/new-end-point-not-found.png)
+
+Nesse caso para contornar esse problema vamos usar o `"imagePullPolicy:Always "`
+
+Para isso vamos editar o arquuivo `deployment.yaml`
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v1
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+### Função do `"imagePullPolicy"`
+
+O parâmetro `"imagePullPolicy"` é usado em ferramentas de orquestração, como Kubernetes, para controlar quando e como a imagem Docker deve ser baixada (ou puxada) do registro. Ele trabalha em conjunto com o versionamento para assegurar um comportamento previsível. 
+
+### Valores Possíveis do `"imagePullPolicy"`:
+
+1. **`Always`**:
+   - Faz o download da imagem toda vez que o pod é iniciado.
+   - Útil para tags não versionadas, como `latest`, garantindo que a versão mais recente esteja sempre em uso.
+   - Pode aumentar o tempo de inicialização devido ao download constante da imagem.
+
+2. **`IfNotPresent`**:
+   - Apenas baixa a imagem se ela não estiver disponível no nó onde o pod está sendo executado.
+   - Ideal para imagens versionadas, já que evita downloads desnecessários e aproveita as imagens já armazenadas localmente.
+
+3. **`Never`**:
+   - Nunca tenta baixar a imagem, assumindo que ela já está disponível localmente.
+   - Geralmente usado em cenários controlados, como testes locais ou ambientes restritos sem acesso ao registro.
+
+### Como o `"imagePullPolicy"` complementa o versionamento?
+
+- Quando se usa **versionamento**, a política `IfNotPresent` é comumente utilizada para evitar downloads repetidos da mesma imagem, economizando largura de banda e acelerando o deployment.
+- Para tags não versionadas, como `latest`, o uso de `Always` é recomendado para garantir que a versão mais recente da imagem seja usada. No entanto, essa prática é desencorajada em produção devido à falta de previsibilidade.
+
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/download-image-kubernetes.png)
+
+
+![](image/Kubernetes/new-end-point-ok.png)
+
 ## ✨ Entendendo Problemas da Tag Latest
+
+Vimos que a versão é muito importante para o health da aplicação.
+
+Agora vamos descobrir como fazer um rollback da aplicação nesse cenário de má prática de não utilizar o vercionamento da imagem.
+
+
+```bash
+kubectl rollout history deployment/api-rocket -n ns-rocket
+```
+
+
+### Explicação do comando `kubectl rollout history deployment/api-rocket`
+
+O comando `kubectl rollout history deployment/api-rocket` é usado para exibir o histórico de revisões de um *Deployment* específico no Kubernetes. No caso do comando apresentado, ele está sendo aplicado ao *Deployment* chamado `api-rocket`.
+
+### Funcionamento
+- **`kubectl rollout`**: É o comando relacionado à administração de atualizações e mudanças de recursos do tipo *Deployment* no Kubernetes.
+- **`history`**: Esta subcomando exibe o histórico de revisões do *Deployment*, incluindo informações sobre alterações realizadas em diferentes versões.
+- **`deployment/api-rocket`**: Especifica o recurso (neste caso, um *Deployment* chamado `api-rocket`) para o qual o histórico deve ser consultado.
+
+### Saída Esperada
+A saída do comando geralmente exibe uma tabela com as seguintes colunas:
+- **REVISION**: O número da revisão (começando em 1 para o primeiro estado registrado).
+- **CHANGE-CAUSE**: Uma descrição sobre a causa da mudança, se fornecida no momento da aplicação do comando `kubectl apply` ou `kubectl rollout`.
+
+
+
+### Quando usar
+- Para identificar alterações no *Deployment* ao longo do tempo.
+- Para verificar quem ou o que realizou mudanças.
+- Para auxiliar em *rollbacks* ou diagnósticos de problemas relacionados a alterações.
+
+
+![](image/Kubernetes/result-rollout-history.png)
+
+### Adicionando o CHANGE-CAUSE
+Para que o campo `CHANGE-CAUSE` seja preenchido, é necessário especificar a causa da mudança ao aplicar alterações, utilizando a flag `--record`, como no exemplo abaixo:
+
+```bash
+kubectl apply -f deployment.yaml --record
+```
+
+
+`"kubectl rollout undo"`: Reverte o Deployment para uma revisão anterior, útil quando algo deu errado após uma atualização.
+
+```bash
+kubectl rollout undo deployment/api-rocket --to-revision=1 -n ns-rocket
+```
+
+![](image/Kubernetes/rollback-version-kubernetes.png)
+
+Agora vamos verificar e o end-point **`"/example-k8s"`** foi excluido das rotas da api.
+
+![](image/Kubernetes/rote-error-example-k8s.png)
+
+Como podemos ver a rota ainda existe. Mas por que?
+
+Aqui o rollback faz o download da imagem ou reaproveita a mesma.
+Como não alteramos a versão da imagem temos a perda o lastro, desta forma o rollback não foi realizado corretamente.
+
 
 ## ✨ Criando Nova Tag e Controlando Rollback da Aplicação
 
+Agora que entendemos que não é uma boa prática sobre-escrever tags, vamos fazer algumas alterações.
+
+Nesse caso para contornar esse problema vamos usar o `"imagePullPolicy:IfNotPresent "`
+
+Para isso vamos editar o arquuivo `deployment.yaml`
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    
+    return `Estou rodando no K8s! ${ Date.UTC }`;
+  }
+}
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v2 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v2
+
+```
+
+![](image/Kubernetes/deploment-v2-api.png)
+
+
+![](image/Kubernetes/docker-hub-new-version.png)
+
+```bash
+
+ kubectl apply -f k8s -n ns-rocket
+
+```
+
+![](image/Kubernetes/new-end-point-change-result.png)
+
+
+```
+PS C:\Repo\rocketseat.ci.api> kubectl rollout history deployment/api-rocket -n ns-rocket
+deployment.apps/api-rocket 
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+4         <none>
+
+PS C:\Repo\rocketseat.ci.api> 
+
+```
+
+**`"!Aqui todos os comando executados no terminal foram executados de forma imperativa!"`**
+
 ## ✨ Trabalhando Com Estratégias De Deploy
+
+
 
 ## ✨ Entendendo o Recreate
 
