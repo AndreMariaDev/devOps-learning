@@ -1028,34 +1028,17 @@ Após a criação do arquivo vamos preencher com o seguinte script:
 
 ```yaml
 
-apiVersion: apps/v1
-kind: Deployment
-
+apiVersion: v1
+kind: Service
 metadata:
-  name: nginx
-
+  name: nginx-svc
 spec:
-  replicas: 5
+  type: ClusterIP
   selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:stable-alpine3.20-perl
-        resources:
-          requests:
-            cpu: 100m
-            memory: 64Mi
-          limits:
-            memory: "128Mi"
-            cpu: "200m"
-        ports:
-        - containerPort: 80
+    app: nginx
+  ports:
+  - port: 80
+    targetPort: 80 # - containerPort: 80 deployment.yaml
 
 
 ```
@@ -1201,3 +1184,202 @@ http://localhost:8080
 
 Como vimos solucionamos o acesso interno aos pods , não não solucionamos o problema de acesso externo.
 ✨
+
+# Explorando Deployment e cenários em uma aplicação real
+
+
+## ✨ Conteinerizando a nossa aplicação
+
+Vamos usar o DockerFile da Aplicação Exemplo da Sessão  Docker Tutorial.
+
+## ✨ Criando os Objetos do Kubernetes
+
+Vamos Utilizar o Docker Hub para trabalhar com as imagens da nossa aplicação
+
+Desta forma é necessário fazer o login
+
+```bash
+docker login 
+```
+
+```yaml
+# begin build
+FROM node:18-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+RUN npm ci --only=production
+#end build
+
+#begin excution
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/package.json ./package.json
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:prod"]
+#end excution
+```
+
+```bash
+docker build -t api-rocket:v1 .
+```
+
+```bash
+docker image ls api-rocket
+```
+
+```bash
+docker tag api-rocket:v1 andremariadevops/api-rocket:v1 .
+```
+
+```bash
+docker push andremariadevops/api-rocket:v1 
+```
+
+Agora vamos criar um objeto Deployment Kubernetes:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+
+![](image/Kubernetes/file-deployment-docker-hub.png)
+
+```bash
+kubectl create namespace ns-rocket
+```
+
+![](image/Kubernetes/commands-deployment.png)
+
+
+```bash
+kubectl apply -f k8s -n ns-rocket
+```
+
+
+![](image/Kubernetes/lens-view-pod-docker-hub.png)
+
+## ✨ Criando Service e explorando imagePullPolicy
+
+Agora vamos criar um novo arquivo `service.yaml`
+
+Após a criação do arquivo vamos preencher com o seguinte script:
+
+```yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-rocket-svc
+spec:
+  type: ClusterIP
+  selector:
+    api: api-rocket #  selector: matchLabels: api: api-rocket deployment.yaml
+  ports:
+  - port: 80
+    targetPort: 3000 # - containerPort: 80 deployment.yaml
+
+
+```
+
+```bash
+
+kubectl apply -f k8s/service.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/commands-service.png)
+
+Vamos incluir um novo end-point em nossa api :
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    return 'Estou rodando no K8s!';
+  }
+}
+```
+
+```typescript
+import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+
+  @Get('/example-k8s')
+  getExample(): string {
+    return this.appService.getExample();
+  }
+}
+```
+
+## ✨ Entendendo Problemas da Tag Latest
+
+## ✨ Criando Nova Tag e Controlando Rollback da Aplicação
+
+## ✨ Trabalhando Com Estratégias De Deploy
+
+## ✨ Entendendo o Recreate
+
+## ✨ Explorando Variável de Ambiente na Aplicação
+
+## ✨ Entendendo sobre o ConfigMap
+
+## ✨ Explorando o objeto Secret
+
+## ✨ Melhorando Gerenciamento de Envs
