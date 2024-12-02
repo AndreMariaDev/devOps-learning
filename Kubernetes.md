@@ -1673,7 +1673,42 @@ PS C:\Repo\rocketseat.ci.api>
 
 ## ✨ Trabalhando Com Estratégias De Deploy
 
+```yaml
+apiVersion: apps/v1
+kind: Deployment
 
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
 
 ## ✨ Entendendo o Recreate
 
