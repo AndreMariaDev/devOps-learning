@@ -1673,6 +1673,24 @@ PS C:\Repo\rocketseat.ci.api>
 
 ## ✨ Trabalhando Com Estratégias De Deploy
 
+#### RollingUpdate
+
+O **RollingUpdate** no Kubernetes é uma estratégia de atualização utilizada para atualizar os pods de forma controlada e sem causar downtime no serviço. Essa estratégia é usada no **Deployment** e no **StatefulSet**, permitindo substituir gradualmente os pods antigos por novos, garantindo que sempre haja um número mínimo de pods disponíveis durante o processo.
+
+#### Como funciona o RollingUpdate?
+
+#### 1. Troca Gradual de Pods
+- O Kubernetes cria novos pods com a versão atualizada da aplicação.
+- Em seguida, remove os pods antigos, um por vez, ou conforme a configuração.
+
+#### 2. Configurações Principais
+No arquivo YAML do Deployment ou StatefulSet, você pode configurar os seguintes parâmetros no campo `strategy`:
+
+- **`maxUnavailable`**: Define o número máximo de pods que podem estar indisponíveis durante a atualização.
+- **`maxSurge`**: Especifica quantos pods adicionais podem ser criados além do número desejado de réplicas.
+
+#### Exemplo:
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -1710,12 +1728,573 @@ spec:
         - containerPort: 3000
 ```
 
+#### 3. Interrupção de Atualizações
+- Se algo der errado, é possível interromper (pause) ou reverter a atualização (rollback) para evitar downtime ou problemas maiores.
+
+#### 4. Comandos úteis
+- **Pausar** uma atualização:
+  ```bash
+  kubectl rollout pause deployment/my-deployment
+  ```
+- **Retomar** a atualização:
+  ```bash
+  kubectl rollout resume deployment/my-deployment
+  ```
+- **Verificar o status** da atualização:
+  ```bash
+  kubectl rollout status deployment/my-deployment
+  ```
+- **Reverter** para uma versão anterior:
+  ```bash
+  kubectl rollout undo deployment/my-deployment
+  ```
+
+#### 5. Vantagens do RollingUpdate
+- **Sem downtime**: Garante disponibilidade durante o processo.
+- **Controlável**: Permite configurar tolerâncias para indisponibilidade e escalar gradualmente.
+
+#### 6. Limitações
+- Pode ser mais lento que uma substituição completa.
+- Não é ideal para cenários em que é necessária consistência absoluta entre todos os pods (nesse caso, pode-se usar a estratégia **Recreate**).
+
+Se precisar de um exemplo mais detalhado ou ajustes para um caso específico, me avise!
+
+
 ## ✨ Entendendo o Recreate
+
+#### Estratégia `Recreate` no Kubernetes
+
+A estratégia **`Recreate`** no Kubernetes é uma das duas principais estratégias de atualização disponíveis (a outra é **`RollingUpdate`**). Essa estratégia é utilizada em controladores como o **`Deployment`** e o **`StatefulSet`**, definindo como os pods devem ser gerenciados durante uma atualização.
+
+#### O que é a estratégia `Recreate`?
+- **Comportamento**: Na estratégia `Recreate`, todos os pods do conjunto antigo são **primeiro terminados** antes que os novos sejam criados. Isso significa que haverá um período de indisponibilidade enquanto a transição ocorre.
+- **Configuração**: Essa estratégia é útil para aplicações que não suportam múltiplas versões em execução ao mesmo tempo ou quando o estado compartilhado entre as versões pode causar conflitos.
+
+#### Quando usar `Recreate`?
+- **Aplicações com estado**: Quando sua aplicação mantém um estado que pode ser corrompido se múltiplas instâncias (ou versões diferentes) forem executadas simultaneamente.
+- **Conexões exclusivas**: Se o aplicativo usa conexões de longa duração, filas, ou qualquer recurso exclusivo que não permita concorrência entre múltiplas versões.
+- **Compatibilidade restrita**: Quando não há compatibilidade retroativa ou compatibilidade entre versões (por exemplo, uma aplicação com mudanças radicais no banco de dados ou API).
+
+#### Vantagens do `Recreate`
+1. **Simplicidade**: A estratégia elimina a necessidade de gerenciar múltiplas versões simultaneamente.
+2. **Evita conflitos**: Ideal para cenários em que as versões do aplicativo podem interferir uma na outra.
+3. **Previsibilidade**: Como todos os pods antigos são encerrados antes de iniciar os novos, é mais fácil garantir consistência.
+
+#### Desvantagens do `Recreate`
+1. **Indisponibilidade**: Haverá um período de downtime entre o término dos pods antigos e o início dos novos.
+2. **Impacto em usuários**: Pode não ser adequado para aplicações críticas onde a disponibilidade contínua é essencial.
+
+#### Dicas ao usar `Recreate`
+- **Planeje janelas de manutenção**: Use a estratégia durante períodos de baixa demanda para minimizar o impacto nos usuários.
+- **Monitore os recursos**: Certifique-se de que os novos pods podem ser inicializados rapidamente para reduzir o downtime.
+- **Use readiness probes**: Isso ajuda a garantir que os novos pods estejam totalmente funcionais antes de considerar a atualização como concluída.
+
+A estratégia `Recreate` é um bom ajuste para cenários específicos, mas, para a maioria das aplicações modernas, a **estratégia `RollingUpdate`** é mais recomendada por evitar downtime.
 
 ## ✨ Explorando Variável de Ambiente na Aplicação
 
+#### Configurar e Consumir Informações de um Arquivo `.env` no NestJS
+
+No NestJS, você pode configurar e consumir informações de um arquivo `.env` usando o pacote `@nestjs/config`. Abaixo está um guia passo a passo:
+
+---
+
+#### 1. Instalar Dependências
+Primeiro, instale o pacote necessário para trabalhar com variáveis de ambiente:
+
+```bash
+npm install @nestjs/config dotenv
+```
+
+---
+
+#### 2. Criar um Arquivo `.env`
+Crie um arquivo `.env` na raiz do seu projeto e adicione suas variáveis:
+
+
+```env
+APP=rocketseat-app
+```
+
+#### 3. Configurar o Módulo de Configuração no AppModule
+No arquivo `app.module.ts`, importe e configure o módulo de configuração:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Torna o módulo global, não precisa importar em outros módulos
+      envFilePath: '.env', // Caminho do arquivo .env (opcional, padrão é .env)
+    }),
+  ],
+})
+export class AppModule {}
+```
+#### 4. Consumir Variáveis no Código
+Use o serviço `AppService` para acessar as variáveis de ambiente. Você pode injetar o `ConfigService` em qualquer lugar.
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    
+    return `Estou rodando no K8s! ${ Date.UTC }: ${process.env.APP}`;
+  }
+}
+```
+
+Agora, seu aplicativo NestJS está configurado para consumir e validar variáveis de ambiente do arquivo `.env`! 🚀
+
 ## ✨ Entendendo sobre o ConfigMap
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v3 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v3
+
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v3
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/undefined-variable.png)
+
+
+Como podemos ver o valor entre a APP do env e a aplicação estão indefinidos. Para resolvermos esse problema vamos criar um novo arquivo 
+`configmap.yaml`.
+
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: api-rocket
+data:
+  app-name: rocketseat-app
+
+```
+
+
+#### Propósito do Script
+A definição de um **ConfigMap** no Kubernetes. Um **ConfigMap** é usado para armazenar pares de chave-valor que podem ser utilizados pelas aplicações em contêiners, 
+permitindo a configuração de aplicações sem necessidade de alterar suas imagens.
+
+
+#### 1. `apiVersion: v1`
+- **Significado:** Define a versão da API do Kubernetes que será usada para criar este objeto.
+- **Detalhes:** A versão `v1` é a versão estável e comumente usada para objetos como ConfigMaps.
+
+#### 2. `kind: ConfigMap`
+- **Significado:** Especifica o tipo de recurso que está sendo definido.
+- **Detalhes:** Neste caso, o recurso é um ConfigMap, que será usado para armazenar dados de configuração em forma de texto simples.
+
+#### 3. `metadata:`
+- **Significado:** Contém metadados sobre o recurso.
+- **Detalhes:** Esta seção inclui informações como o nome do ConfigMap e, opcionalmente, labels e anotações para identificação e organização.
+
+##### 3.1. `name: api-rocket`
+- **Significado:** Define o nome do ConfigMap.
+- **Detalhes:** O nome é `api-rocket`, que será usado para referenciar este ConfigMap em outros recursos do Kubernetes.
+
+#### 4. `data:`
+- **Significado:** Contém os dados de configuração em formato de pares de chave-valor.
+- **Detalhes:** Os dados aqui definidos podem ser usados por aplicações para configurar seu funcionamento.
+
+##### 4.1. `app-name: rocketseat-app`
+- **Significado:** Define um par chave-valor onde:
+  - `app-name` é a chave.
+  - `rocketseat-app` é o valor associado à chave.
+- **Detalhes:** Este valor pode ser utilizado por uma aplicação em execução para, por exemplo, identificar o nome do aplicativo.
+
+### Exemplo de Uso
+- Este ConfigMap pode ser montado como um arquivo ou passado como variável de ambiente para os contêiners que fazem parte de um **Pod** no Kubernetes.
+
+
+
+### Benefícios do Uso do ConfigMap
+- **Centralização de Configuração:** Facilita a alteração de parâmetros sem a necessidade de reconstruir as imagens dos contêineres.
+- **Flexibilidade:** Permite que a mesma imagem seja usada em diferentes ambientes com configurações distintas.
+- **Manutenção:** Facilita a gestão de configurações em ambientes dinâmicos e escaláveis.
+
+
+
+```bash
+
+kubectl apply -f k8s/configmap.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/confirm-variable-configmap.png)
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+
+![](image/Kubernetes/ok-variable.png)
 
 ## ✨ Explorando o objeto Secret
 
+
+Vamos criar um novo arquivo 
+`secret.yaml`.
+
+```yaml
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name:  api-rocket-secrets
+type: Opaque
+data:
+  api-key: cm9ja2V0c2VhdC1hcHA=
+
+```
+
+`app-key: cm9ja2V0c2VhdC1hcHA=` o valor da `app-key` deve ser em base 64 
+
+
+```bash
+
+kubectl apply -f k8s/secret.yaml -n ns-rocket
+
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v4 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v4
+
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v4
+        imagePullPolicy: IfNotPresent
+        env:
+          - name:  APP
+            valueFrom:
+              configMapKeyRef:
+                name:  api-rocket
+                key:  app-name
+          - name:  API_KEY
+            valueFrom:
+              secretKeyRef:
+                name:  api-rocket-secrets
+                key:  api-key
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+        - containerPort: 3000
+```
+![](image/Kubernetes/secret-kube.png)
+
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
 ## ✨ Melhorando Gerenciamento de Envs
+
+![](image/Kubernetes/change-implementation-secret-variable.png)
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v4
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        # env:
+        #   - name:  APP
+        #     valueFrom:
+        #       configMapKeyRef:
+        #         name:  api-rocket
+        #         key:  app-name
+        #   - name:  API_KEY
+        #     valueFrom:
+        #       secretKeyRef:
+        #         name:  api-rocket-secrets
+        #         key:  api-key
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: api-rocket
+
+data:
+  APP: rocketseat-app
+  # app-name: rocketseat-app
+
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name:  api-rocket-secrets
+type: Opaque
+data:
+  API_KEY: cm9ja2V0c2VhdC1hcHA=
+  # api-key: cm9ja2V0c2VhdC1hcHA=
+
+```
+
+#### Explicação das Mudanças nos Trechos Comentados do Deployment
+
+No **Deployment** do Kubernetes, o trecho comentado utilizava variáveis de ambiente específicas referenciadas diretamente nos campos `env` (`APP` e `API_KEY`). No trecho atual, optou-se por utilizar os recursos `envFrom` para importar variáveis de ambiente de um **ConfigMap** e de um **Secret**. Essa alteração traz as seguintes vantagens:
+
+---
+
+#### 1. Manutenção Simplificada
+- **Comentado**:
+  - Variáveis de ambiente específicas (`APP` e `API_KEY`) são configuradas diretamente no `Deployment`. Caso outras variáveis precisem ser adicionadas ou modificadas, o arquivo do `Deployment` precisaria ser alterado.
+
+- **Atual**:
+  - O uso de `envFrom` permite que todas as variáveis contidas no `ConfigMap` e no `Secret` sejam automaticamente carregadas, evitando alterações repetidas no `Deployment`.
+
+---
+
+#### 2. Segregação de Responsabilidades
+- **Comentado**:
+  - Todas as definições de variáveis (tanto sensíveis quanto não sensíveis) estão no mesmo local.
+
+- **Atual**:
+  - Separar as variáveis sensíveis (`API_KEY`, no `Secret`) e não sensíveis (`APP`, no `ConfigMap`) melhora a organização e facilita o controle. **ConfigMaps** são usados para dados não confidenciais, enquanto **Secrets** são criptografados.
+
+---
+
+#### 3. Escalabilidade e Reutilização
+- **Comentado**:
+  - Cada variável de ambiente precisava ser explicitamente mapeada, tornando o arquivo de configuração menos reutilizável em diferentes cenários.
+
+- **Atual**:
+  - `ConfigMap` e `Secret` podem ser reutilizados por outros **Deployments** ou serviços que precisem das mesmas variáveis. Isso elimina redundâncias e simplifica a gestão de configurações.
+
+---
+
+#### 4. Redução de Erros
+- **Comentado**:
+  - O uso de `configMapKeyRef` e `secretKeyRef` exige especificar cada chave e pode levar a erros caso o nome ou a chave estejam incorretos.
+
+- **Atual**:
+  - `envFrom` reduz a possibilidade de erros, pois todas as chaves válidas no `ConfigMap` ou no `Secret` são automaticamente carregadas.
+
+---
+
+# Alterações no **ConfigMap** e **Secret**
+
+##### **ConfigMap**
+- **Comentado**:
+  - Definição direta da chave `app-name`, que é referenciada no `Deployment`.
+- **Atual**:
+  - Alterado para usar diretamente a variável `APP`, facilitando o carregamento pelo `envFrom` e mantendo consistência com o `.env`.
+
+##### **Secret**
+- **Comentado**:
+  - Chave nomeada como `api-key`, usada diretamente no `Deployment`.
+- **Atual**:
+  - Alterada para `API_KEY`, mantendo consistência com o `.env` e simplificando o carregamento via `envFrom`.
+
+---
+
+# Vantagens Adicionais
+1. **Conformidade com Boas Práticas**: A separação entre ConfigMap e Secret é alinhada às práticas recomendadas do Kubernetes.
+2. **Integração com Ferramentas DevOps**: O uso de `.env` como referência facilita a integração com pipelines de CI/CD e evita discrepâncias entre o ambiente local e o Kubernetes.
+3. **Escalabilidade**: O novo formato suporta com facilidade a adição de mais variáveis, sem necessidade de alterações estruturais no `Deployment`.
+
+
+
+```bash
+
+kubectl apply -f k8s/secret.yaml -n ns-rocket
+
+```
+
+```bash
+
+kubectl apply -f k8s/configmap.yaml -n ns-rocket
+
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
