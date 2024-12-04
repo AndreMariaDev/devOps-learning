@@ -1187,7 +1187,6 @@ Como vimos solucionamos o acesso interno aos pods , não não solucionamos o pro
 
 # Explorando Deployment e cenários em uma aplicação real
 
-
 ## ✨ Conteinerizando a nossa aplicação
 
 Vamos usar o DockerFile da Aplicação Exemplo da Sessão  Docker Tutorial.
@@ -2258,7 +2257,7 @@ No **Deployment** do Kubernetes, o trecho comentado utilizava variáveis de ambi
 
 ---
 
-# Alterações no **ConfigMap** e **Secret**
+#### Alterações no **ConfigMap** e **Secret**
 
 ##### **ConfigMap**
 - **Comentado**:
@@ -2274,7 +2273,7 @@ No **Deployment** do Kubernetes, o trecho comentado utilizava variáveis de ambi
 
 ---
 
-# Vantagens Adicionais
+#### Vantagens Adicionais
 1. **Conformidade com Boas Práticas**: A separação entre ConfigMap e Secret é alinhada às práticas recomendadas do Kubernetes.
 2. **Integração com Ferramentas DevOps**: O uso de `.env` como referência facilita a integração com pipelines de CI/CD e evita discrepâncias entre o ambiente local e o Kubernetes.
 3. **Escalabilidade**: O novo formato suporta com facilidade a adição de mais variáveis, sem necessidade de alterações estruturais no `Deployment`.
@@ -2298,3 +2297,295 @@ kubectl apply -f k8s/configmap.yaml -n ns-rocket
 kubectl apply -f k8s/deployment.yaml -n ns-rocket
 
 ```
+
+
+# Conhecendo o HPA
+
+## O que é Escala
+
+## Conhecendo a escala vertical">Conhecendo a escala vertical
+
+**`"Escala Vertical"`** 
+- Aumenta o tamanho da máquina - em termos de cpu, memória, armazenamento.
+- Necessário em casos de grande escala com apenas uma máquina.
+- Menor redundância e maior risco de indisponibilidade.
+- Limite do próprio hardware
+- Promove down time dentro de um determinado período
+- VPA dentro do k8s
+
+## Explorando a escala horizontal
+
+**`"Escala horizontal"`** 
+- Replicação da infraestrutura.
+- Visa Distribuir igualmente as cargas de trabalho.
+- Aumento a tolerância a falhas.
+- Por ser horizontal, temos uma maior redundância.
+- A escala não está restrita aos limites do hardware.
+- Condicionada aos recursos e/ou eventos - KEDA.
+- ! Possíveis problemas na consistência de dados!
+
+## Como o Metrics-Server funciona
+
+O **`"Metrics"`** Server é um componente essencial no ecossistema do Kubernetes para coletar e expor métricas de uso de recursos `(como CPU e memória)` em tempo real dos nós e dos pods em um cluster. 
+
+Ele é um substituto moderno para o antigo heapster e faz parte das APIs de métricas do Kubernetes.
+
+---
+
+#### **Como funciona o Metrics Server**
+
+1. **Coleta de Métricas:**
+   - O Metrics Server coleta métricas de uso de recursos diretamente dos agentes do Kubernetes, chamados de **kubelet**, que estão presentes em cada nó do cluster.
+   - O kubelet usa o **cAdvisor** (integrado) para monitorar o uso de recursos no nível do nó e dos contêineres.
+
+2. **Exposição de Métricas:**
+   - As métricas coletadas pelo Metrics Server são expostas por meio da **API de métricas do Kubernetes** (`metrics.k8s.io`).
+   - Essas métricas são disponibilizadas para componentes internos, como o **Horizontal Pod Autoscaler (HPA)**, e também podem ser acessadas por comandos como `kubectl top`.
+
+3. **Eficiência e Escalabilidade:**
+   - Ele é projetado para ser leve e eficiente, armazenando apenas métricas em tempo real (não mantém histórico).
+   - É ideal para aplicações onde o foco está em ações imediatas baseadas em métricas, como escalonamento horizontal.
+
+---
+
+#### **Para que serve o Metrics Server**
+
+1. **Escalonamento Horizontal Automático (HPA):**
+   - Permite que o Kubernetes ajuste automaticamente o número de réplicas de um deployment ou replica set com base em métricas de uso de CPU e memória.
+
+2. **Monitoramento em Tempo Real:**
+   - Fornece informações sobre o consumo atual de recursos dos pods e nós do cluster.
+
+## Adicionando o Metrics-Server no nosso Cluster"
+
+Vamos acessar ao site :
+
+https://github.com/kubernetes-sigs/metrics-server
+
+Vamos rodar o seguinte comando :
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+![](image/Kubernetes/metrics-server-command.png)
+
+Vamos ver se funciona.
+
+```bash
+kubectl get po -n kube-system
+```
+
+![](image/Kubernetes/command-kubctl-get-po-metrics-server.png)
+
+Como podemos ver na imagem o pod `metrics-server-54bf7cdd6-z7bvj` não esta em execução.
+
+Para analizarmos melhor o problema vamos rodar o seguinte comando:
+
+```bash
+kubectl logs metrics-server-54bf7cdd6-z7bvj -n kube-system
+```
+
+```bash
+E1203 22:07:33.612329       1 scraper.go:149] "Failed to scrape node" err="Get \"https://172.23.0.2:10250/metrics/resource\": tls: failed to verify certificate: x509: cannot validate certificate for 172.23.0.2 because it doesn't contain any IP SANs" node="secund-cluster-rocketseat-worker"
+E1203 2
+```
+
+Como estamos em um ambiente local não é possível validar o certificado.
+
+Para resolver esse problema vamos ao site https://github.com/kubernetes-sigs/metrics-server 
+
+![](image/Kubernetes/solve-problema-certification.png)
+
+- primeiro é excluir o metrics-server
+
+```bash
+kubectl delete -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+- Vamos acessar a pasta k8s e vamos rodar o seguinte comando:
+
+```bash
+wget https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+ou 
+
+```bash
+Invoke-WebRequest -Uri https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml -OutFile components.yaml
+
+```
+
+Aqui fizemos o download para a pasta para internalizar o arquivo para que possamos configura-lo conforme a necessidade.
+
+![](image/Kubernetes/new-file.yaml)
+
+Agora vamos editar o conteudo do arquivo.
+
+- renomear o arquivo para `metrics-server.yaml`
+- vamos adicionar `--kubelet-insecure-tls` no trecho `- args` do trecho `Deployment` do arquivo.
+
+![](image/Kubernetes/add-kubelet-insecure-tls.png)
+
+- vamos rodar o camando
+
+```bash
+kubectl apply -f metrics-server.yaml
+```
+
+```bash
+kubectl get po -n kube-system
+```
+
+![](image/Kubernetes/log-ok-metrics-server.png)
+
+agora podemos ver que as metricas nos pods relacionados a nossa api possuem valores:
+
+![](image/Kubernetes/pods-metricris-log.png)
+
+- Consultando logs pleo comando:
+
+```bash
+kubectl top po -n ns-rocket
+```
+
+![](image/Kubernetes/logs-top-pods.png)
+
+## Entendendo os Principais Triggers
+
+## Explorando a V1 do HPA
+
+Vamos criar uma novo arquivo `hpa.yaml`
+
+```yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: api-rocket-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-rocket
+  minReplicas: 3
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 75
+
+```
+
+![](image/Kubernetes/new-config-file-hpa.png)
+
+
+```bash
+kubectl apply -f k8s/hpa.yaml -n ns-rocket
+```
+
+```bash
+kubectl get hpa -n ns-rocket
+```
+
+![](image/Kubernetes/overview-hpa-start.png)
+
+Aqui estamos usando a v1 para o hpa vamos. Vamos fazer o upgrade para V2. Mas antes vamos excluir o hpa do cluster.
+
+```bash
+kubectl delete -f k8s/hpa.yaml -n ns-rocket
+```
+Vamos renomear o arquivo para `hpa-v1.yaml`
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: api-rocket-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-rocket
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  
+```
+
+```bash
+kubectl apply -f k8s/hpa.yaml -n ns-rocket
+```
+
+```bash
+kubectl get hpa -n ns-rocket
+```
+
+```bash
+PS C:\Repo\rocketseat.ci.api> kubectl get hpa -n ns-rocket
+NAME             REFERENCE               TARGETS                        MINPODS   MAXPODS   REPLICAS   AGE
+api-rocket-hpa   Deployment/api-rocket   cpu: 0%/75%, memory: 79%/80%   3         8         3          36s
+PS C:\Repo\rocketseat.ci.api> 
+
+```
+
+## Criando o HPA Utilizando a V2
+
+Vamos criar uma novo arquivo `hpa.yaml`
+
+```yaml
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: api-rocket-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-rocket
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  
+
+```
+
+```bash
+kubectl apply -f k8s/hpa-v2.yaml -n ns-rocket
+```
+
+```bash
+kubectl get hpa -n ns-rocket
+```
+
+## Estressando a Nossa Aplicação
+
+## Explorando mais cenários de estresse
+
+## Alterando Recursos e Réplicas da Aplicação
+
+## Definindo tempo de reação para escalonar a quantidade de réplicas
