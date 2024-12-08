@@ -2536,6 +2536,7 @@ kind: HorizontalPodAutoscaler
 ```
 
 **`apiVersion: autoscaling/v2`**: Especifica a versão da API do HPA. A versão v2 suporta métricas avançadas e configuráveis, como diferentes tipos de recursos e thresholds personalizados.
+
 **`kind: HorizontalPodAutoscaler`**: Declara que o objeto a ser criado é um HPA.
 
 #### **Metadados**
@@ -2544,7 +2545,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: api-rocket-hpa
 ```
-    **`name: api-rocket-hpa`**: Define o nome do recurso HPA no cluster. Esse nome será usado para identificá-lo.
+**`name: api-rocket-hpa`**: Define o nome do recurso HPA no cluster. Esse nome será usado para identificá-lo.
 
 #### Especificações
 
@@ -2570,8 +2571,9 @@ spec:
   maxReplicas: 8
 ```
 
-    **`minReplicas: 3`**: O número mínimo de réplicas garantidas para o deployment. Nunca haverá menos de 3 réplicas rodando, mesmo com baixo uso de recursos.
-    **`maxReplicas: 8`**: O número máximo de réplicas permitido. Se a carga ultrapassar este limite, o Kubernetes não criará mais réplicas.
+**`minReplicas: 3`**: O número mínimo de réplicas garantidas para o deployment. Nunca haverá menos de 3 réplicas rodando, mesmo com baixo uso de recursos.
+
+**`maxReplicas: 8`**: O número máximo de réplicas permitido. Se a carga ultrapassar este limite, o Kubernetes não criará mais réplicas.
 
 #### 3. Métricas de Escalonamento
 
@@ -2594,28 +2596,38 @@ spec:
 
 #### Métrica 1: CPU
 
-    **`type: Resource`**: Indica que o escalonamento será baseado no uso de recursos do pod.
-    **`name: cpu`**: Especifica que a métrica monitorada será o uso de CPU.
-    **`target`**:
-        **`type: Utilization`**: Define que a métrica será avaliada como porcentagem de uso em relação ao limite configurado no pod.
-        **`averageUtilization`**: 75: Se o uso médio de CPU ultrapassar 75% em todas as réplicas, o HPA criará mais réplicas (respeitando os limites definidos).
+**`type: Resource`**: Indica que o escalonamento será baseado no uso de recursos do pod.
+
+**`name: cpu`**: Especifica que a métrica monitorada será o uso de CPU.
+
+**`target`**:
+
+- **`type: Utilization`**: Define que a métrica será avaliada como porcentagem de uso em relação ao limite configurado no pod.
+
+- **`averageUtilization`**: 75: Se o uso médio de CPU ultrapassar 75% em todas as réplicas, o HPA criará mais réplicas (respeitando os limites definidos).
 
 #### Métrica 2: Memória
 
-    **`name: memory`**: Especifica que a métrica monitorada será o uso de memória.
-    **`averageUtilization`**: 80: Se o uso médio de memória ultrapassar 80%, o HPA criará mais réplicas para lidar com a carga.
+**`name: memory`**: Especifica que a métrica monitorada será o uso de memória.
+
+**`averageUtilization`**: 80: Se o uso médio de memória ultrapassar 80%, o HPA criará mais réplicas para lidar com a carga.
 
 #### Como Funciona na Prática
 
-    Monitoramento Contínuo: O HPA monitora o uso de CPU e memória em todas as réplicas do deployment api-rocket.
-    Ajuste Automático:
-        Se o uso médio de CPU for maior que 75% ou o uso médio de memória for maior que 80%, o HPA escala o número de réplicas até um máximo de 8.
-        Se o uso médio estiver abaixo dos thresholds e houver mais de 3 réplicas, o HPA reduz o número de réplicas, respeitando o mínimo de 3.
-    Eficiência de Recursos: Esse comportamento garante que o cluster mantenha um desempenho estável e evite sobrecargas ou subutilização.
+Monitoramento Contínuo: O HPA monitora o uso de CPU e memória em todas as réplicas do deployment api-rocket.
+
+Ajuste Automático:
+- Se o uso médio de CPU for maior que 75% ou o uso médio de memória for maior que 80%, o HPA escala o número de réplicas até um máximo de 8.
+
+- Se o uso médio estiver abaixo dos thresholds e houver mais de 3 réplicas, o HPA reduz o número de réplicas, respeitando o mínimo de 3.
+
+Eficiência de Recursos: Esse comportamento garante que o cluster mantenha um desempenho estável e evite sobrecargas ou subutilização.
 
 #### Resumo
 
-Este script define uma política de escalonamento automático para o deployment api-rocket, ajustando dinamicamente o número de réplicas entre 3 e 8, com base no uso de CPU (75%) e memória (80%). Ele é útil para garantir alta disponibilidade e eficiência, especialmente em cargas de trabalho variáveis.
+Este script define uma política de escalonamento automático para o deployment api-rocket, ajustando dinamicamente o número de réplicas entre 3 e 8, com base no uso de CPU (75%) e memória (80%). 
+
+Ele é útil para garantir alta disponibilidade e eficiência, especialmente em cargas de trabalho variáveis.
 
 
 
