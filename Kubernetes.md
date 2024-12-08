@@ -2559,10 +2559,10 @@ spec:
 
 #### 1. Referência ao Deployment
 
-    **`scaleTargetRef`**: Especifica o recurso que será escalado automaticamente.
-        **`apiVersion: apps/v1`**: A API para gerenciar Deployment no Kubernetes.
-        **`kind: Deployment`**: Indica que o HPA se aplica a um Deployment.
-        **`name: api-rocket`**: O nome do Deployment que será escalado.
+**`scaleTargetRef`**: Especifica o recurso que será escalado automaticamente.
+- **`apiVersion: apps/v1`**: A API para gerenciar Deployment no Kubernetes.
+- **`kind: Deployment`**: Indica que o HPA se aplica a um Deployment.
+- **`name: api-rocket`**: O nome do Deployment que será escalado.
 
 #### 2. Configuração de Réplicas
 
