@@ -2303,7 +2303,7 @@ kubectl apply -f k8s/deployment.yaml -n ns-rocket
 
 ## O que é Escala
 
-## Conhecendo a escala vertical">Conhecendo a escala vertical
+## Conhecendo a escala vertical
 
 **`"Escala Vertical"`** 
 - Aumenta o tamanho da máquina - em termos de cpu, memória, armazenamento.
@@ -3150,3 +3150,36 @@ Agora podemos dora novamente o teste de estresse:
 ```bash
 kubectl run -it fortio -n ns-rocket --rm --image=fortio/fortio -- load -qps 6000 -t 120s -c 50 "http://api-rocket-svc/example-k8s"
 ```
+
+```bash
+Connection time histogram (s) : count 57 avg 0.0013138895 +/- 0.00426 min 7.8184e-05 max 0.02913538 sum 0.074891704
+# range, mid point, percentile, count
+>= 7.8184e-05 <= 0.001 , 0.000539092 , 85.96, 49
+> 0.001 <= 0.002 , 0.0015 , 92.98, 4
+> 0.003 <= 0.004 , 0.0035 , 94.74, 1
+> 0.004 <= 0.005 , 0.0045 , 96.49, 1
+> 0.014 <= 0.016 , 0.015 , 98.25, 1
+> 0.025 <= 0.0291354 , 0.0270677 , 100.00, 1
+# target 50% 0.000606308
+# target 75% 0.000879972
+# target 90% 0.001575
+# target 99% 0.0267782
+# target 99.9% 0.0288997
+Sockets used: 57 (for perfect keepalive, would be 50)
+Uniform: false, Jitter: false, Catchup allowed: true
+IP addresses distribution:
+10.96.107.209:80: 57
+Code 200 : 10411 (100.0 %)
+Response Header Sizes : count 10411 avg 228 +/- 0 min 228 max 228 sum 2373708
+Response Body/Total Sizes : count 10411 avg 298 +/- 0 min 298 max 298 sum 3102478
+All done 10411 calls (plus 50 warmup) 579.522 ms avg, 85.7 qps
+Session ended, resume using 'kubectl attach fortio -c fortio -i -t' command when the pod is running
+pod "fortio" deleted
+```
+
+Comparando o resultado com as outras execuções de teste de estresse temos:
+
+***`"All done 4279 calls (plus 50 warmup) 1413.665 ms avg, 34.9 qps"`***
+***`"All done 10003 calls (plus 50 warmup) 600.651 ms avg, 82.9 qps"`***
+
+***`"All done 10411 calls (plus 50 warmup) 579.522 ms avg, 85.7 qps"`***
