@@ -3136,3 +3136,17 @@ Quando o HPA detecta que a carga em um Deployment ultrapassou os limites definid
 
 #### **Respostas Rápidas**
 - A janela de estabilização curta (**5 segundos**) permite respostas quase imediatas em situações de alta demanda.
+
+
+Agora vamos testar a alteração rodando o comando 
+
+```bash
+kubectl apply -f k8s/hpa-v2.yaml -n ns-rocket
+```
+
+
+Agora podemos dora novamente o teste de estresse:
+
+```bash
+kubectl run -it fortio -n ns-rocket --rm --image=fortio/fortio -- load -qps 6000 -t 120s -c 50 "http://api-rocket-svc/example-k8s"
+```
