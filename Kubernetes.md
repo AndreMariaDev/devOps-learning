@@ -2326,7 +2326,7 @@ kubectl apply -f k8s/deployment.yaml -n ns-rocket
 
 ## Como o Metrics-Server funciona
 
-O **`"Metrics"`** Server é um componente essencial no ecossistema do Kubernetes para coletar e expor métricas de uso de recursos `(como CPU e memória)` em tempo real dos nós e dos pods em um cluster. 
+O **`"Metrics-Server"`**  é um componente essencial no ecossistema do Kubernetes para coletar e expor métricas de uso de recursos `(como CPU e memória)` em tempo real dos nós e dos pods em um cluster. 
 
 Ele é um substituto moderno para o antigo heapster e faz parte das APIs de métricas do Kubernetes.
 
@@ -2487,7 +2487,7 @@ kubectl get hpa -n ns-rocket
 
 ![](image/Kubernetes/overview-hpa-start.png)
 
-Aqui estamos usando a v1 para o hpa vamos. Vamos fazer o upgrade para V2. Mas antes vamos excluir o hpa do cluster.
+Aqui estamos usando a v1 para o hpa. Vamos fazer o upgrade para V2. Mas antes vamos excluir o hpa do cluster.
 
 ```bash
 kubectl delete -f k8s/hpa.yaml -n ns-rocket
@@ -2520,8 +2520,104 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-  
 ```
+
+
+#### Explicação do Script Horizontal Pod Autoscaler (HPA)
+
+Este script define um **HorizontalPodAutoscaler (HPA)** no Kubernetes, que ajusta automaticamente o número de réplicas de pods em um deployment com base no uso de recursos (CPU e memória). Vamos analisar o script em detalhes:
+
+---
+
+#### **Cabeçalho**
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+```
+
+**`apiVersion: autoscaling/v2`**: Especifica a versão da API do HPA. A versão v2 suporta métricas avançadas e configuráveis, como diferentes tipos de recursos e thresholds personalizados.
+**`kind: HorizontalPodAutoscaler`**: Declara que o objeto a ser criado é um HPA.
+
+#### **Metadados**
+
+```yaml
+metadata:
+  name: api-rocket-hpa
+```
+    **`name: api-rocket-hpa`**: Define o nome do recurso HPA no cluster. Esse nome será usado para identificá-lo.
+
+#### Especificações
+
+```yaml
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-rocket
+```
+
+#### 1. Referência ao Deployment
+
+    **`scaleTargetRef`**: Especifica o recurso que será escalado automaticamente.
+        **`apiVersion: apps/v1`**: A API para gerenciar Deployment no Kubernetes.
+        **`kind: Deployment`**: Indica que o HPA se aplica a um Deployment.
+        **`name: api-rocket`**: O nome do Deployment que será escalado.
+
+#### 2. Configuração de Réplicas
+
+```yaml
+  minReplicas: 3
+  maxReplicas: 8
+```
+
+    **`minReplicas: 3`**: O número mínimo de réplicas garantidas para o deployment. Nunca haverá menos de 3 réplicas rodando, mesmo com baixo uso de recursos.
+    **`maxReplicas: 8`**: O número máximo de réplicas permitido. Se a carga ultrapassar este limite, o Kubernetes não criará mais réplicas.
+
+#### 3. Métricas de Escalonamento
+
+```yaml
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+
+#### Métrica 1: CPU
+
+    **`type: Resource`**: Indica que o escalonamento será baseado no uso de recursos do pod.
+    **`name: cpu`**: Especifica que a métrica monitorada será o uso de CPU.
+    **`target`**:
+        **`type: Utilization`**: Define que a métrica será avaliada como porcentagem de uso em relação ao limite configurado no pod.
+        **`averageUtilization`**: 75: Se o uso médio de CPU ultrapassar 75% em todas as réplicas, o HPA criará mais réplicas (respeitando os limites definidos).
+
+#### Métrica 2: Memória
+
+    **`name: memory`**: Especifica que a métrica monitorada será o uso de memória.
+    **`averageUtilization`**: 80: Se o uso médio de memória ultrapassar 80%, o HPA criará mais réplicas para lidar com a carga.
+
+#### Como Funciona na Prática
+
+    Monitoramento Contínuo: O HPA monitora o uso de CPU e memória em todas as réplicas do deployment api-rocket.
+    Ajuste Automático:
+        Se o uso médio de CPU for maior que 75% ou o uso médio de memória for maior que 80%, o HPA escala o número de réplicas até um máximo de 8.
+        Se o uso médio estiver abaixo dos thresholds e houver mais de 3 réplicas, o HPA reduz o número de réplicas, respeitando o mínimo de 3.
+    Eficiência de Recursos: Esse comportamento garante que o cluster mantenha um desempenho estável e evite sobrecargas ou subutilização.
+
+#### Resumo
+
+Este script define uma política de escalonamento automático para o deployment api-rocket, ajustando dinamicamente o número de réplicas entre 3 e 8, com base no uso de CPU (75%) e memória (80%). Ele é útil para garantir alta disponibilidade e eficiência, especialmente em cargas de trabalho variáveis.
+
+
 
 ```bash
 kubectl apply -f k8s/hpa.yaml -n ns-rocket
