@@ -3291,3 +3291,379 @@ Comparando o resultado com as outras execuções de teste de estresse temos:
 ***`"All done 10003 calls (plus 50 warmup) 600.651 ms avg, 82.9 qps"`***
 
 ***`"All done 10411 calls (plus 50 warmup) 579.522 ms avg, 85.7 qps"`***
+
+
+# Probes e Self Healing
+
+## O que são Probes e Self Healing
+
+No Kubernetes, **Probes** e o conceito de **Self-Healing** estão relacionados ao gerenciamento de aplicações e à resiliência do sistema. Veja a explicação detalhada:
+
+---
+
+### **Probes**
+
+Probes são mecanismos usados para monitorar a saúde dos containers em um cluster. Elas permitem ao Kubernetes determinar se um container está funcionando corretamente e tomar as ações necessárias em caso de falhas. Existem três tipos principais de probes:
+
+### **Tipos de Probes**
+
+1. **Liveness Probe**:
+   - Verifica se o container está "vivo" ou funcionando corretamente.
+   - Se falhar, o Kubernetes reinicia o container, assumindo que ele está travado ou em um estado irreparável.
+   - **Exemplo**: Verificar se um processo essencial está em execução.
+
+2. **Readiness Probe**:
+   - Verifica se o container está "pronto" para receber tráfego.
+   - Se falhar, o container é retirado do **Service** até que passe novamente.
+   - **Exemplo**: Certificar-se de que a aplicação carregou completamente e está pronta para responder a solicitações.
+
+3. **Startup Probe**:
+   - Verifica se o container foi iniciado corretamente. É útil para aplicações que demoram muito para inicializar.
+   - Evita que o Kubernetes reinicie prematuramente containers que demoram para ficar prontos.
+
+### **Métodos de Configuração**
+
+As probes podem ser configuradas de diferentes formas:
+- **HTTP**: Faz uma solicitação HTTP para verificar o status (ex.: código 200 é considerado saudável).
+- **TCP**: Verifica se consegue abrir uma conexão TCP com o container.
+- **Command**: Executa um comando no container e verifica o código de saída (0 é considerado sucesso).
+
+---
+
+### **Self-Healing (Auto-Cura)**
+
+O **Self-Healing** é um dos princípios fundamentais do Kubernetes, garantindo a alta disponibilidade e a resiliência das aplicações. Ele utiliza probes e outros mecanismos para detectar falhas e corrigir problemas automaticamente.
+
+### **Como funciona?**
+- O Kubernetes monitora os containers continuamente usando as probes.
+- Se uma **liveness probe** falhar, o container será reiniciado automaticamente.
+- Se um nó do cluster falhar, os pods que estavam nesse nó são redistribuídos para outros nós disponíveis.
+- Se uma **readiness probe** falhar, o tráfego não é roteado para aquele pod até que ele volte a estar saudável.
+
+### **Benefícios**:
+- Redução de downtime (tempo de inatividade).
+- Menor necessidade de intervenção manual.
+- Maior confiabilidade e estabilidade da aplicação.
+
+## Configurando Rotas na Aplicação
+
+Na aplicação Nest.js vamos criar um novo controller. Para isso vamos criar uma nova pasta nomeada `health` contendo um controller e um service.
+
+![](image/Kubernetes/create-new-componente.png)
+
+
+
+No arquivo `health.service.ts` temos :
+
+```typescript
+
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class HealthService {
+
+  checkHealth(): string {
+    return 'Check Health Rocketset Api OK!';
+  }
+
+  checkReady(): string {
+    return 'Check Ready Rocketset Api OK!';
+  }
+}
+
+
+```
+
+No arquivo `health.controller.ts` temos :
+
+```typescript
+
+import { Controller, Get } from '@nestjs/common';
+import { HealthService } from './health.service';
+
+@Controller()
+export class HealthController {
+  constructor(private readonly healthService: HealthService) {}
+
+  @Get('/healthz')
+  healthz(): string {
+    return this.healthService.checkHealth();
+  }
+
+  @Get('/readyz')
+  readyz(): string {
+    return this.healthService.checkReady();
+  }
+}
+
+
+```
+
+Agora é necessário declarar os novos arquivos no `app.modules.ts`.
+
+```typescript
+
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { HealthController } from './health/health.controller';
+import { HealthService } from './health/health.service';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Torna o módulo global, não precisa importar em outros módulos
+      envFilePath: '.env', // Caminho do arquivo .env (opcional, padrão é .env)
+    }),
+  ],
+  controllers: [AppController, HealthController],
+  providers: [AppService, HealthService],
+})
+export class AppModule {}
+
+
+```
+
+Agora vamos excutar os seguintes comandos:
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v6 .  
+
+```
+
+```bash
+
+docker push andremariadevops/api-rocket:v6  
+
+```
+
+## Startup
+
+Vamos configurar o startup probe . Para isso vamos alterar o arquivo `deployment.yaml`.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v6
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+vamos incluir um console.log na aplicação e vamos alterar o número da versão .
+
+```typescript
+
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class HealthService {
+
+  checkHealth(): string {
+    console.log("Checked app Healt");
+    return 'Check Health Rocketset Api OK!';
+  }
+
+  checkReady(): string {
+    console.log("Checked app Ready");
+    return 'Check Ready Rocketset Api OK!';
+  }
+}
+
+
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v7
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+
+
+Agora vamos excutar os seguintes comandos:
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v7 .  
+
+```
+
+```bash
+
+docker push andremariadevops/api-rocket:v7  
+
+```
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+## Readiness
+
+Vamos alterar o arquivo `deployment.yaml` adicionando as configurações do readiness.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v7
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 15
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+
+## Liveness
+
+## Refatorando a Aplicação e Entendendo Mais Sobre o Command
+
+## Garantindo prontidão da aplicação
+
+## Alternativas na camada da aplicação
