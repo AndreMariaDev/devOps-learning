@@ -32,7 +32,7 @@ O terraforme possui em sua lista de comando um comando especifico para atuar com
 
 Aqui a ideia é não realizar o commit para o repo git do arquivo `terraform.tfstate` mas como vamos adm isso?
 
-O `terraform.tfstate` deve ser gerenciado de uma maneira remota. Uma maneira de realizar isso é uasr o `S3` como recurso para gerenciar o estado `back-end remoto` !
+O `terraform.tfstate` deve ser gerenciado de uma maneira remota. Uma maneira de realizar isso é usar o `S3` como recurso para gerenciar o estado `back-end remoto` !
 
 A ideia é trabalharmos com um  `terraform.tfstate` onde o run de uma terraform local aponte para o `terraform.tfstate` contido no `S3` e não para o `terraform.tfstate` local.
 
@@ -90,7 +90,7 @@ Para finalizar podemos rodar o comando `terraform apply -auto-approve`.
 
 ![](image/aws-s3-state.png)
 
-Agora vamosa configurar o `back-end`
+Agora vamos configurar o `back-end`
 
 3. Back-end Configure
 
@@ -195,7 +195,7 @@ Para Excluir um recuros especifico devemos rodar o seguinte comando:
 
 `terraform plan --destroy --target PATH`
 
- Onde `PATH` sria o recuros que queremos excluir exemplo :
+ Onde `PATH` seria o recuros que queremos excluir exemplo :
 
  `PATH` =  module.[nome_module].[resource].[name]
 

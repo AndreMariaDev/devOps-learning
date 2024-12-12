@@ -3659,11 +3659,576 @@ Execute o comando :
 kubectl apply -f k8s/deployment.yaml -n ns-rocket
 ```
 
+![](image/Kubernetes/log-readiness.png)
+
+Pensando em um cenário onde uma aplicação pode ter um alto tempo de **`"bootstrap"`**, as configurações atuais no nosso arquivo `deployment.yaml` não atende essa questão.
+
+Logo vamos alterar ulguns pontos da nossa aplicação para termos esse cenário.
+
+Em nossa aplicação vamos trabalhar no arquivo `main.ts`.
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(process.env.PORT ?? 3000);
+}
+bootstrap();
+```
+
+#### 1. Importação de módulos essenciais
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+```
+
+#### NestFactory
+- É uma classe fornecida pelo NestJS que facilita a criação de instâncias de aplicativos.
+- `NestFactory.create()` é o método usado para criar a aplicação principal.
+
+#### AppModule
+- É o módulo raiz da aplicação. Ele geralmente serve como ponto de entrada, onde outros módulos, controladores e provedores são importados e configurados.
+- Esse arquivo `app.module.ts` normalmente define os componentes principais que sua aplicação usará.
+
+#### 2. Função bootstrap
+
+```typescript
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(process.env.PORT ?? 3000);
+}
+bootstrap();
+```
+
+#### Definição da função bootstrap
+- A função bootstrap é uma função assíncrona que serve como o ponto de entrada para a aplicação.
+- O NestJS é baseado em programação assíncrona devido à natureza do Node.js e seu loop de eventos.
+
+#### Etapas detalhadas
+
+#### Criar a aplicação:
+
+```typescript
+const app = await NestFactory.create(AppModule);
+```
+
+- Cria a aplicação principal baseada no módulo raiz (`AppModule`).
+- Configura o pipeline de execução, middlewares, injeção de dependência e outras funcionalidades do NestJS.
+
+#### 2. Iniciar o servidor HTTP:
+
+```typescript
+await app.listen(process.env.PORT ?? 3000);
+```
+
+- Aqui a aplicação é configurada para ouvir requisições HTTP.
+- `process.env.PORT`:
+  - Tenta usar a variável de ambiente `PORT` (caso ela esteja definida).
+  - É útil para implantações onde o provedor de hospedagem (como Heroku ou AWS) define automaticamente a porta.
+- `3000`:
+  - Caso a variável `PORT` não esteja definida, o servidor usará a porta padrão 3000.
+
+#### 3. Chamada da função
+
+```typescript
+bootstrap();
+```
+
+- Invoca a função bootstrap para iniciar a aplicação.
+
+#### Fluxo geral do script
+
+- O `NestFactory` cria a instância principal da aplicação utilizando o módulo raiz (`AppModule`).
+- O servidor é configurado para escutar na porta definida (seja pela variável de ambiente ou pela porta padrão 3000).
+- A aplicação é inicializada e começa a escutar requisições HTTP.
+
+#### Contexto do NestJS
+
+#### AppModule
+- O NestJS usa o conceito de módulos, e o `AppModule` é o módulo inicial, onde você configura rotas, controladores, serviços, middlewares, etc.
+
+#### Arquitetura modular
+- O código segue o padrão arquitetural orientado a módulos, permitindo uma organização mais limpa e escalável.
+
+
+Agora que entendemos como funciona, vamos alterar o script da seguinte maneira:
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(process.env.PORT ?? 3000);
+}
+
+setTimeout(() => {
+  bootstrap();
+}, 60000);
+
+```
+O código que você adicionou usa o setTimeout, que é uma função do JavaScript para executar um trecho de código após um determinado intervalo de tempo. Vamos ver o que ele faz no seu contexto:
+Código completo:
+
+```typescript
+setTimeout(() => {
+  bootstrap();
+}, 60000);
+```
+
+**`"Explicação detalhada"`**:
+
+- `"setTimeout(callback, delay)"`:
+	setTimeout é uma função global do JavaScript que executa uma função (o callback) após um certo tempo (o delay em milissegundos).
+	O primeiro parâmetro é uma função (neste caso, uma função de seta) que será executada quando o tempo de espera passar.
+	O segundo parâmetro é o tempo de atraso em milissegundos (60000 milissegundos no seu caso, que corresponde a 60 segundos ou 1 minuto).
+
+- `"bootstrap()"`:
+	Dentro da função de callback, você está chamando a função `bootstrap()`, que, conforme vimos antes, é responsável por iniciar a aplicação NestJS.
+
+- `"60000"`:
+	Esse valor representa o tempo de atraso antes de a função `bootstrap()` ser chamada, e é dado em milissegundos.
+	60000 milissegundos = 60 segundos = 1 minuto.
+
+**`"O que acontece?"`**
+
+    * Após 1 minuto de a aplicação ser carregada, a função `bootstrap()` será chamada novamente.
+    
+	* Isso significa que, após 60 segundos, a aplicação NestJS será reiniciada ou relançada, dependendo de como o seu código está configurado.
+
+**`"Cenários comuns para usar esse padrão"`**:
+
+    * Reinício ou retry: Esse padrão pode ser útil para aplicações que precisam tentar reiniciar em caso de falha ou para um "retry" após um tempo de espera.
+    
+	* Delay em inicialização: Você pode querer que a aplicação inicie somente após algum tempo de espera, talvez para aguardar a inicialização de serviços externos, como bancos de dados ou servidores.
+
+**`"Possíveis implicações"`**:
+
+    * Se a função `bootstrap()` inicializa um servidor `HTTP`, ao ser chamada novamente, o servidor será reiniciado. Isso pode ser problemático, pois um servidor `HTTP` não pode ser "reiniciado" enquanto ainda está rodando na mesma porta, a menos que você manipule explicitamente o processo (como matar o servidor antigo antes de criar um novo).
+    
+	* Cuidado com o uso excessivo de setTimeout em funções como essas, pois pode causar problemas de performance ou conflitos em servidores de produção, dependendo do contexto.
+
+Se o seu objetivo for ter um comportamento específico (como tentar reiniciar após falha), seria interessante considerar outras abordagens mais controladas, como a utilização de mecanismos de "health check" ou "retry" mais robustos.
+
+Agora vamos alterar o arquivo `health.services.ts`.
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class HealthService {
+
+  checkHealth(): boolean {
+    console.log("Checked app Healt");
+    return (new Date().getMilliseconds() % 2 === 0);
+  }
+
+  checkReady(): string {
+    console.log("Checked app Ready");
+    return 'Check Ready Rocketset Api OK!';
+  }
+}
+
+```
+
+Agora vamos alterar o arquivo `health.controller.ts`.
+
+```typescript
+import { Controller, Get } from '@nestjs/common';
+import { HealthService } from './health.service';
+
+@Controller()
+export class HealthController {
+  constructor(private readonly healthService: HealthService) { }
+
+  @Get('/healthz')
+  healthz(): string {
+    if (this.healthService.checkHealth()) {
+      return 'Check Health Rocketset Api OK!';
+    }
+    throw new Error();
+  }
+
+  @Get('/readyz')
+  readyz(): string {
+    return this.healthService.checkReady();
+  }
+}
+
+```
+
+Essas alterações vão impactar o item[`startupProbe`]
+
+
+Agora vamos excutar os seguintes comandos:
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v8 .  
+
+```
+
+```bash
+
+docker push andremariadevops/api-rocket:v8 
+
+```
 
 ## Liveness
 
+Vamos alterar o arquivo `deployment.yaml` adicionando as configurações do liveness.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v7
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 5
+          successThreshold: 1
+          periodSeconds: 10 
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+Vamos subir a nossa alteração mas ainda não vamos usar a versão v8. Continuaremos com a versão v7.
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+![](image/Kubernetes/log-version-v7.png)
+
+Agora vamos mudar para versão v8 ... `image: andremariadevops/api-rocket:v8`
+
+![](image/Kubernetes/log-version-v8.png)
+
+```bash
+Startup probe failed: Get "http://10.244.1.43:3000/healthz": dial tcp 10.244.1.43:3000: connect: connection refused
+```
+
+Temos aqui um problema.
+
+O startupProbe não está controlando o tempo, uma vez que está running o processo tenta fazer o teste.
+
+A aplicação não está pronta para responder no momento da probe: O seu startupProbe tenta verificar se a aplicação está funcionando ao acessar /healthz na porta 3000. Porém, a aplicação pode não estar totalmente pronta para responder a esse pedido após o início.
+
+Estamos usando o setTimeout de 60 segundos no código, para atrazar o início da aplicação, fazendo com que o Kubernetes não consiga se conectar a tempo.
+
+Para solucionar vamos fazer um ajuste o startupProbe para ter um initialDelaySeconds maior para aguardar mais tempo antes da primeira tentativa de verificação.
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v8
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+          initialDelaySeconds: 60
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10 
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+![](image/Kubernetes/log-error-pods.png)
+
+
+Como podemos ver a aplicação está com muitos problemas .
+
 ## Refatorando a Aplicação e Entendendo Mais Sobre o Command
 
+Vamos corrigir os problemas "desfazer as alterações relacionadas ao cenário de erro".
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class HealthService {
+
+  checkHealth(): string {
+    console.log("Checked app Healt");
+    return 'Check Healt Rocketset Api OK!';
+  }
+
+  checkReady(): string {
+    console.log("Checked app Ready");
+    return 'Check Ready Rocketset Api OK!';
+  }
+}
+
+
+import { Controller, Get } from '@nestjs/common';
+import { HealthService } from './health.service';
+
+@Controller()
+export class HealthController {
+  constructor(private readonly healthService: HealthService) { }
+
+  @Get('/healthz')
+  healthz(): string {
+    return this.healthService.checkHealth();
+  }
+
+  @Get('/readyz')
+  readyz(): string {
+    return this.healthService.checkReady();
+  }
+}
+
+```
+
+Agora vamos excutar os seguintes comandos:
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v9 .  
+
+```
+
+```bash
+
+docker push andremariadevops/api-rocket:v9 
+
+```
+
+Agora vmos atualizar a versão do deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 6
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v9
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10
+          initialDelaySeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 15
+          initialDelaySeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+          periodSeconds: 10 
+          initialDelaySeconds: 5
+        resources:
+          requests:
+            cpu: 400m
+            memory: 64Mi
+          limits:
+            cpu: "700m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+Execute o comando :
+```bash
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+```
+
+![](image/Kubernetes/log-ok-pods.png)
+
 ## Garantindo prontidão da aplicação
+
+
+```bash
+kubectl get svc -n ns-rocket
+```
+
+```bash
+PS C:\Repo\rocketseat.ci.api> kubectl get svc -n ns-rocket
+NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+api-rocket-svc   ClusterIP   10.96.107.209   <none>        80/TCP    14d
+PS C:\Repo\rocketseat.ci.api> 
+```
+
+```bash
+kubectl describe svc api-rocket-svc -n ns-rocket
+```
+
+```bash
+PS C:\Repo\rocketseat.ci.api> kubectl describe svc api-rocket-svc -n ns-rocket
+Name:              api-rocket-svc
+Namespace:         ns-rocket
+Labels:            <none>
+Annotations:       <none>
+Selector:          api=api-rocket
+Type:              ClusterIP
+IP Family Policy:  SingleStack
+IP Families:       IPv4
+IP:                10.96.107.209
+IPs:               10.96.107.209
+Port:              <unset>  80/TCP
+TargetPort:        3000/TCP
+Endpoints:         10.244.1.45:3000,10.244.1.46:3000,10.244.1.47:3000 + 3 more...
+Session Affinity:  None
+Events:            <none>
+```
+
+![](image/Kubernetes/network-service-endpoint.png)
+
+![](image/Kubernetes/network-service-endpoint-pods.png)
+
+
+Nossa aplicação só recebe tráfico se passar pelas etapas **`"startupProbe"`** e **`"readinessProbe"`** 
+
 
 ## Alternativas na camada da aplicação
