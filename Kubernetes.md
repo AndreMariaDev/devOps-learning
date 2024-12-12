@@ -3493,6 +3493,50 @@ spec:
         - containerPort: 3000
 ```
 
+
+#### Explicação do trecho `startupProbe` no Kubernetes
+
+O trecho abaixo configura uma **`startupProbe`** em um arquivo de manifesto Kubernetes. Essa sonda é usada para verificar quando uma aplicação (ou contêiner) está **pronta durante a inicialização**, o que é útil para aplicativos que podem demorar a iniciar.
+
+#### startupProbe
+- **`startupProbe`** verifica a saúde do contêiner **durante o processo de inicialização**.
+- Enquanto a sonda não for bem-sucedida, o Kubernetes considera que o contêiner **ainda não está pronto** para aceitar tráfego ou executar outras operações.
+
+#### Componentes detalhados:
+
+#### httpGet
+- Especifica que a sonda fará uma requisição HTTP para verificar o estado da aplicação.
+  - **path: /healthz**  
+    Define o endpoint no contêiner que será verificado para determinar a saúde do contêiner.
+  - **port: 3000**  
+    Porta do contêiner onde será feita a requisição HTTP.
+
+#### failureThreshold
+- **3**  
+  Número de falhas consecutivas permitidas antes que o Kubernetes considere que o contêiner **não conseguiu inicializar**.  
+  Após 3 falhas consecutivas, o contêiner será reiniciado.
+
+#### successThreshold
+- **1**  
+  Número de verificações bem-sucedidas consecutivas necessárias para o Kubernetes considerar o contêiner **pronto**.  
+  Aqui, basta **1 verificação bem-sucedida**.
+
+#### timeoutSeconds
+- **1**  
+  Tempo máximo (em segundos) que o Kubernetes espera por uma resposta do endpoint antes de considerar a tentativa como falha.
+
+#### periodSeconds
+- **10**  
+  Intervalo de tempo (em segundos) entre cada execução da sonda.
+
+---
+
+#### Funcionamento Geral
+1. O Kubernetes verifica periodicamente o endpoint HTTP `/healthz` na porta 3000 assim que o contêiner começa a iniciar.
+2. Caso o endpoint responda com sucesso (ex.: HTTP 200), o contêiner será considerado como inicializado.
+3. Se o contêiner falhar 3 vezes consecutivas (por timeout ou erro no endpoint), ele será reiniciado.
+4. A sonda é executada a cada 10 segundos, e o Kubernetes espera no máximo 1 segundo pela resposta em cada verificação.
+
 Execute o comando :
 ```bash
 kubectl apply -f k8s/deployment.yaml -n ns-rocket
