@@ -1,166 +1,548 @@
-#### `apiVersion: v1`
-- Define a versão da API do Kubernetes utilizada para este recurso.
-- `v1` é a versão estável para recursos básicos como `Pod`.
-#### `kind: Pod`
-- Especifica o tipo de recurso que será criado.
-- Neste caso, estamos criando um **Pod**, que é a menor unidade executável no Kubernetes.
-#### `metadata:`
-- Define informações adicionais sobre o recurso.
-#### `name: nginx`
-- Atribui o nome **nginx** ao Pod.
-- Este nome deve ser único dentro do namespace onde o Pod está sendo criado.
-#### `spec:`
-- Contém a descrição detalhada de como o Pod será configurado.
-#### `containers:`
-- Define os containers que serão executados no Pod. Cada Pod pode conter um ou mais containers.
-##### `- name: nginx`
-- Especifica o nome do container.
-- O nome deve ser único dentro do Pod e é usado para identificar o container.
-##### `image: nginx:stable-alpine3.20-perl`
-- Indica a imagem Docker que será usada para criar o container.
-- Neste caso, a imagem é **nginx:stable-alpine3.20-perl**, que é uma versão leve e estável do servidor web NGINX.
-##### `ports:`
-- Define as portas expostas pelo container.
-###### `- containerPort: 80`
-- Especifica que o container exporá a porta **80**, comumente usada para serviços HTTP.
-#### `resources:`
-- Configura os limites e as solicitações de recursos para o container.
-#### `requests:`
-- Representa a quantidade mínima de recursos garantidos para o container.
-##### `cpu: 100m`
-- O container requer pelo menos **100 millicores** (0,1 vCPU).
-##### `memory: 64Mi`
-- O container requer pelo menos **64 MiB** de memória.
-#### `limits:`
-- Representa a quantidade máxima de recursos que o container pode usar.
-##### `cpu: 200m`
-- O container pode usar até **200 millicores** (0,2 vCPU).
-##### `memory: 128Mi`
-- O container pode usar até **128 MiB** de memória.
-#### Resumo
-Este script YAML configura um Pod com:
-- Um container baseado na imagem **nginx:stable-alpine3.20-perl**.
-- Exposição da porta 80.
-- Garantia de uso mínimo de **0,1 vCPU** e **64 MiB** de memória.
-- Limite máximo de **0,2 vCPU** e **128 MiB** de memória.
-#### 1. `kubectl`
-- **Definição**: `kubectl` é a ferramenta de linha de comando utilizada para interagir com o Kubernetes.
-- **Função neste comando**: Serve como a base para executar comandos que gerenciam recursos no cluster Kubernetes.
-#### 2. `apply`
-- **Definição**: O subcomando `apply` é usado para aplicar ou atualizar a configuração de recursos no cluster.
-- **Função neste comando**: Indica ao Kubernetes que ele deve criar ou atualizar os recursos descritos no arquivo `pod.yaml`.
-#### 3. `-f pod.yaml`
-- **Definição**:
-  - O argumento `-f` (abreviação de `--filename`) especifica o arquivo YAML contendo a definição dos recursos Kubernetes a serem aplicados.
-  - `pod.yaml` é o nome do arquivo que contém a descrição dos recursos, como pods, services ou deployments.
-- **Função neste comando**: Fornece ao `kubectl` os detalhes da configuração do pod para aplicação no cluster.
-#### 4. `-n first-app`
-- **Definição**:
-  - `-n` (abreviação de `--namespace`) especifica o namespace no qual os recursos devem ser criados ou atualizados.
-  - `first-app` é o nome do namespace alvo.
-- **Função neste comando**: Garante que o recurso seja aplicado no namespace correto (neste caso, `first-app`).
-  - Se o namespace não for especificado, o Kubernetes utiliza o namespace padrão (geralmente chamado `default`).
-#### 1. **ReplicaSet Monitora o Estado**
-O ReplicaSet verifica constantemente o número de pods em execução, baseando-se no `selector.matchLabels`. 
-#### 2. **Ação Após a Deleção**
-- Ao deletar um pod gerenciado pelo ReplicaSet, ele detecta a ausência desse pod e recria um novo imediatamente.
-- O novo pod será baseado no modelo definido na seção `template` do ReplicaSet.
-#### 3. **Imutabilidade dos Pods**
-- Os pods criados pelo ReplicaSet são independentes e imutáveis. Alterar diretamente um pod (como modificar sua configuração) não afeta o modelo do ReplicaSet.
-- Se um pod for modificado manualmente, o ReplicaSet substituirá esse pod por outro que siga o modelo original.
-#### 4. **Impacto no Cluster**
-- Caso todos os pods gerenciados sejam deletados, o ReplicaSet recriará os pods até atingir o número especificado em `replicas`.
-- Se os recursos do cluster (CPU, memória, etc.) forem insuficientes, o ReplicaSet continuará tentando recriar os pods até que os recursos estejam disponíveis.
-#### Exceção: Deleção do Próprio ReplicaSet
-- Se o **ReplicaSet** for deletado, todos os pods gerenciados por ele também serão removidos, já que dependem do ReplicaSet para existir.
-#### Caso Prático
-Você pode testar a recriação automática dos pods com os seguintes comandos:
-#### Usando o ReplicaSet
+# Explorando Deployment e cenários em uma aplicação real
+
+## ✨ Conteinerizando a nossa aplicação
+
+Vamos usar o DockerFile da Aplicação Exemplo da Sessão  Docker Tutorial.
+
+## ✨ Criando os Objetos do Kubernetes
+
+Vamos Utilizar o Docker Hub para trabalhar com as imagens da nossa aplicação
+
+Desta forma é necessário fazer o login
+
+```bash
+docker login 
+```
+
+```yaml
+# begin build
+FROM node:18-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+RUN npm ci --only=production
+#end build
+
+#begin excution
+FROM node:18-alpine3.19
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/package.json ./package.json
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:prod"]
+#end excution
+```
+
+```bash
+docker build -t api-rocket:v1 .
+```
+
+```bash
+docker image ls api-rocket
+```
+
+```bash
+docker tag api-rocket:v1 andremariadevops/api-rocket:v1 .
+```
+
+```bash
+docker push andremariadevops/api-rocket:v1 
+```
+
+Agora vamos criar um objeto Deployment Kubernetes:
+
 ```yaml
 apiVersion: apps/v1
-kind: ReplicaSet
-#### **`"apiVersion: apps/v1"`** 
-Define a versão da API utilizada para o recurso. Nesse caso, o ReplicaSet usa a API `apps/v1`, que é estável para gerenciar aplicativos no Kubernetes.
-#### **`"kind: ReplicaSet"`** 
-Especifica o tipo de recurso que está sendo criado. Aqui, o recurso é um **ReplicaSet**.
-#### **`"metadata:"`** 
-Contém informações básicas de identificação do objeto.
-#### **`"spec:"`** 
-Define a especificação desejada para o ReplicaSet, como o número de réplicas e a configuração dos pods.
-#### **`"replicas: 5"`** 
-Especifica o número desejado de réplicas do pod. O ReplicaSet garante que exatamente 5 pods estejam sempre em execução.
-#### **`"selector:"`** 
-Define como o ReplicaSet identifica os pods que ele deve gerenciar.
-#### **`"template:"`** 
-Define o modelo (template) para os pods que o ReplicaSet irá criar. Essa seção é usada para configurar os pods.
-#### **`"containers:"`** 
-Lista os containers que devem ser executados no pod.
-#### **`"resources:"`** 
-Define as solicitações e limites de recursos para o container.
-#### Resumo
-Este manifesto cria um **`"ReplicaSet"`** chamado `nginx`, que mantém 5 réplicas de um pod executando um container NGINX baseado na imagem `nginx:stable-alpine3.20-perl`. 
-Os pods são configurados para escutar na porta 80 e possuem restrições de CPU e memória definidas para otimizar o uso de recursos do cluster.
-#### Considerações Finais
-Embora o ReplicaSet seja a base para recursos como o Deployment, seu uso direto é recomendado apenas para casos muito específicos, como:
-#### Resumo do Fluxo
-1. **Criar o Service**:
-   - O Kubernetes identifica que é um recurso do tipo `Service`.
-2. **Filtrar Pods**:
-   - Usa o seletor `app: nginx` para encontrar os pods associados.
-3. **Redirecionar o Tráfego**:
-   - O tráfego enviado para o `Service` na porta `80` é redirecionado para a porta `80` nos containers selecionados.
-### Explicação detalhada do comando
-**Comando:**  
-`kubectl port-forward svc/nginx-svc -n first-app 8080:80`
-#### 1. **Contexto**  
-Este comando é usado para criar um túnel local que encaminha o tráfego de uma porta no computador do usuário para uma porta em um serviço (Service) no cluster Kubernetes.
-#### `kubectl`
-É a ferramenta de linha de comando usada para interagir com clusters Kubernetes.  
-#### `port-forward`
-É um subcomando do `kubectl` que permite mapear uma porta do ambiente local para um pod ou serviço no cluster Kubernetes.  
-- Com isso, você pode acessar recursos do cluster que normalmente não estariam expostos publicamente.  
-#### `svc/nginx-svc`
-Indica que o redirecionamento será feito para um **Service** chamado `nginx-svc`.  
-- O prefixo `svc/` é usado para especificar que o alvo é um **Service**.  
-#### `-n first-app`
-Especifica o namespace onde o **Service** está localizado.  
-- Neste caso, o namespace é `first-app`.  
-- Se este argumento fosse omitido, o comando usaria o namespace padrão (`default`).  
-#### `8080:80`
-Define o mapeamento das portas:  
-- `8080`: Porta local do computador onde o tráfego será recebido.  
-- `80`: Porta do serviço dentro do cluster Kubernetes para a qual o tráfego será encaminhado.  
-- O tráfego que chega em `localhost:8080` no ambiente local será redirecionado para o serviço `nginx-svc` na porta `80`.
-#### 3. **Uso prático**  
-Após executar este comando, você pode acessar o serviço `nginx-svc` diretamente no navegador ou com ferramentas como `curl` via:  
-#### 4. **Cenários de uso comuns**
-- Testar um serviço no cluster sem configurá-lo como um recurso publicamente acessível.  
-- Depuração ou desenvolvimento local, acessando serviços internos do Kubernetes de forma segura.  
-#### 5. **Notas importantes**
-- O comando precisa de acesso ao cluster Kubernetes configurado no `kubectl`.  
-- Certifique-se de que a porta local (8080) não esteja em uso por outro processo antes de executar o comando.  
-- Se o Service estiver configurado corretamente no cluster, o tráfego será redirecionado para os pods associados a ele.
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+
+![](image/Kubernetes/file-deployment-docker-hub.png)
+
+```bash
+kubectl create namespace ns-rocket
+```
+
+![](image/Kubernetes/commands-deployment.png)
+
+
+```bash
+kubectl apply -f k8s -n ns-rocket
+```
+
+
+![](image/Kubernetes/lens-view-pod-docker-hub.png)
+
+## ✨ Criando Service e explorando imagePullPolicy
+
+Agora vamos criar um novo arquivo `service.yaml`
+
+Após a criação do arquivo vamos preencher com o seguinte script:
+
+```yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-rocket-svc
+spec:
+  type: ClusterIP
+  selector:
+    api: api-rocket #  selector: matchLabels: api: api-rocket deployment.yaml
+  ports:
+  - port: 80
+    targetPort: 3000 # - containerPort: 80 deployment.yaml
+
+
+```
+
+```bash
+
+kubectl apply -f k8s/service.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/commands-service.png)
+
+Vamos incluir um novo end-point em nossa api :
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    return 'Estou rodando no K8s!';
+  }
+}
+```
+
+```typescript
+import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+
+  @Get('/example-k8s')
+  getExample(): string {
+    return this.appService.getExample();
+  }
+}
+```
+
+NO cenário de CI/CD teriamos :
+
+- 1 Commit 
+- 2 Commit to build image
+- 3 push
+- 4 delevery
+
+Como esse fluxo ainda não está automatizado vamos realizar manualmente os passos.
+
+Mas antes vamos pensar sobre version e sua importância.
+
+### Importância do Versionamento de Imagens Docker
+
+- Por que versionar imagens Docker?
+
+Manter o versionamento de imagens Docker é uma prática essencial para garantir a consistência, rastreabilidade e controle em ambientes de desenvolvimento, teste e produção. 
+
+### Benefícios do Versionamento:
+
+1. **Consistência entre Ambientes:**
+   - Usar uma tag específica, como `v1.0.0` ou `1.2.3`, assegura que o ambiente de produção utilize exatamente a mesma versão de imagem que foi testada em desenvolvimento e homologação.
+   - Evita problemas relacionados a mudanças inesperadas em imagens mais genéricas, como `latest`.
+
+2. **Rastreabilidade:**
+   - O versionamento permite identificar rapidamente qual versão da aplicação está em execução. Isso é fundamental para depuração, rollback e auditorias.
+   - Sem versionamento, pode ser difícil ou impossível rastrear qual código ou configuração está sendo usado em um ambiente.
+
+3. **Controle de Atualizações:**
+   - Com imagens versionadas, atualizações podem ser planejadas e testadas cuidadosamente antes de serem aplicadas.
+   - Reduz a probabilidade de interrupções ou falhas causadas por mudanças inesperadas.
+
+
+### Conclusão
+
+O versionamento de imagens Docker é crucial para garantir controle e estabilidade em ambientes de desenvolvimento e produção. A configuração do `"imagePullPolicy"`, por sua vez, regula como e quando as imagens devem ser atualizadas, complementando as boas práticas de versionamento e evitando problemas causados por mudanças inesperadas.
+
+
+
+Logo vamos testar o cenário onde realizamos o `build` e `push` sem altera a version de v1 para v2.
+
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v1 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v1
+
+```
+
+![](image/Kubernetes/build-push-not-change-version.png)
+
+
+![](image/Kubernetes/overview-image-vergion.png)
+
+Agora será que no Kubernetes vamos conseguir fazer o deployment ?
+
+Para testar vamos tentar acessar o novo end-point http://localhost:64730/example-k8s
+
+
+![](image/Kubernetes/new-end-point-not-found.png)
+
+Nesse caso para contornar esse problema vamos usar o `"imagePullPolicy:Always "`
+
+Para isso vamos editar o arquuivo `deployment.yaml`
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v1
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+### Função do `"imagePullPolicy"`
+
+O parâmetro `"imagePullPolicy"` é usado em ferramentas de orquestração, como Kubernetes, para controlar quando e como a imagem Docker deve ser baixada (ou puxada) do registro. Ele trabalha em conjunto com o versionamento para assegurar um comportamento previsível. 
+
+### Valores Possíveis do `"imagePullPolicy"`:
+
+1. **`Always`**:
+   - Faz o download da imagem toda vez que o pod é iniciado.
+   - Útil para tags não versionadas, como `latest`, garantindo que a versão mais recente esteja sempre em uso.
+   - Pode aumentar o tempo de inicialização devido ao download constante da imagem.
+
+2. **`IfNotPresent`**:
+   - Apenas baixa a imagem se ela não estiver disponível no nó onde o pod está sendo executado.
+   - Ideal para imagens versionadas, já que evita downloads desnecessários e aproveita as imagens já armazenadas localmente.
+
+3. **`Never`**:
+   - Nunca tenta baixar a imagem, assumindo que ela já está disponível localmente.
+   - Geralmente usado em cenários controlados, como testes locais ou ambientes restritos sem acesso ao registro.
+
+### Como o `"imagePullPolicy"` complementa o versionamento?
+
+- Quando se usa **versionamento**, a política `IfNotPresent` é comumente utilizada para evitar downloads repetidos da mesma imagem, economizando largura de banda e acelerando o deployment.
+- Para tags não versionadas, como `latest`, o uso de `Always` é recomendado para garantir que a versão mais recente da imagem seja usada. No entanto, essa prática é desencorajada em produção devido à falta de previsibilidade.
+
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/download-image-kubernetes.png)
+
+
+![](image/Kubernetes/new-end-point-ok.png)
+
+## ✨ Entendendo Problemas da Tag Latest
+
+Vimos que a versão é muito importante para o health da aplicação.
+
+Agora vamos descobrir como fazer um rollback da aplicação nesse cenário de má prática de não utilizar o vercionamento da imagem.
+
+
+```bash
+kubectl rollout history deployment/api-rocket -n ns-rocket
+```
+
+
+### Explicação do comando `kubectl rollout history deployment/api-rocket`
+
+O comando `kubectl rollout history deployment/api-rocket` é usado para exibir o histórico de revisões de um *Deployment* específico no Kubernetes. No caso do comando apresentado, ele está sendo aplicado ao *Deployment* chamado `api-rocket`.
+
 ### Funcionamento
 - **`kubectl rollout`**: É o comando relacionado à administração de atualizações e mudanças de recursos do tipo *Deployment* no Kubernetes.
 - **`history`**: Esta subcomando exibe o histórico de revisões do *Deployment*, incluindo informações sobre alterações realizadas em diferentes versões.
 - **`deployment/api-rocket`**: Especifica o recurso (neste caso, um *Deployment* chamado `api-rocket`) para o qual o histórico deve ser consultado.
+
 ### Saída Esperada
 A saída do comando geralmente exibe uma tabela com as seguintes colunas:
 - **REVISION**: O número da revisão (começando em 1 para o primeiro estado registrado).
 - **CHANGE-CAUSE**: Uma descrição sobre a causa da mudança, se fornecida no momento da aplicação do comando `kubectl apply` ou `kubectl rollout`.
+
+
+
 ### Quando usar
 - Para identificar alterações no *Deployment* ao longo do tempo.
 - Para verificar quem ou o que realizou mudanças.
 - Para auxiliar em *rollbacks* ou diagnósticos de problemas relacionados a alterações.
+
+
+![](image/Kubernetes/result-rollout-history.png)
+
 ### Adicionando o CHANGE-CAUSE
 Para que o campo `CHANGE-CAUSE` seja preenchido, é necessário especificar a causa da mudança ao aplicar alterações, utilizando a flag `--record`, como no exemplo abaixo:
+
+```bash
+kubectl apply -f deployment.yaml --record
+```
+
+
+`"kubectl rollout undo"`: Reverte o Deployment para uma revisão anterior, útil quando algo deu errado após uma atualização.
+
+```bash
+kubectl rollout undo deployment/api-rocket --to-revision=1 -n ns-rocket
+```
+
+![](image/Kubernetes/rollback-version-kubernetes.png)
+
+Agora vamos verificar e o end-point **`"/example-k8s"`** foi excluido das rotas da api.
+
+![](image/Kubernetes/rote-error-example-k8s.png)
+
+Como podemos ver a rota ainda existe. Mas por que?
+
+Aqui o rollback faz o download da imagem ou reaproveita a mesma.
+Como não alteramos a versão da imagem temos a perda o lastro, desta forma o rollback não foi realizado corretamente.
+
+
+## ✨ Criando Nova Tag e Controlando Rollback da Aplicação
+
+Agora que entendemos que não é uma boa prática sobre-escrever tags, vamos fazer algumas alterações.
+
+Nesse caso para contornar esse problema vamos usar o `"imagePullPolicy:IfNotPresent "`
+
+Para isso vamos editar o arquuivo `deployment.yaml`
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    
+    return `Estou rodando no K8s! ${ Date.UTC }`;
+  }
+}
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v2 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v2
+
+```
+
+![](image/Kubernetes/deploment-v2-api.png)
+
+
+![](image/Kubernetes/docker-hub-new-version.png)
+
+```bash
+
+ kubectl apply -f k8s -n ns-rocket
+
+```
+
+![](image/Kubernetes/new-end-point-change-result.png)
+
+
+```
+PS C:\Repo\rocketseat.ci.api> kubectl rollout history deployment/api-rocket -n ns-rocket
+deployment.apps/api-rocket 
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+4         <none>
+
+PS C:\Repo\rocketseat.ci.api> 
+
+```
+
+**`"!Aqui todos os comando executados no terminal foram executados de forma imperativa!"`**
+
+## ✨ Trabalhando Com Estratégias De Deploy
+
+#### RollingUpdate
+
+O **RollingUpdate** no Kubernetes é uma estratégia de atualização utilizada para atualizar os pods de forma controlada e sem causar downtime no serviço. Essa estratégia é usada no **Deployment** e no **StatefulSet**, permitindo substituir gradualmente os pods antigos por novos, garantindo que sempre haja um número mínimo de pods disponíveis durante o processo.
+
+#### Como funciona o RollingUpdate?
+
 #### 1. Troca Gradual de Pods
 - O Kubernetes cria novos pods com a versão atualizada da aplicação.
 - Em seguida, remove os pods antigos, um por vez, ou conforme a configuração.
+
 #### 2. Configurações Principais
 No arquivo YAML do Deployment ou StatefulSet, você pode configurar os seguintes parâmetros no campo `strategy`:
+
+- **`maxUnavailable`**: Define o número máximo de pods que podem estar indisponíveis durante a atualização.
+- **`maxSurge`**: Especifica quantos pods adicionais podem ser criados além do número desejado de réplicas.
+
+#### Exemplo:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
 #### 3. Interrupção de Atualizações
 - Se algo der errado, é possível interromper (pause) ou reverter a atualização (rollback) para evitar downtime ou problemas maiores.
+
 #### 4. Comandos úteis
 - **Pausar** uma atualização:
   ```bash
@@ -178,209 +560,555 @@ No arquivo YAML do Deployment ou StatefulSet, você pode configurar os seguintes
   ```bash
   kubectl rollout undo deployment/my-deployment
   ```
+
 #### 5. Vantagens do RollingUpdate
 - **Sem downtime**: Garante disponibilidade durante o processo.
 - **Controlável**: Permite configurar tolerâncias para indisponibilidade e escalar gradualmente.
+
 #### 6. Limitações
 - Pode ser mais lento que uma substituição completa.
 - Não é ideal para cenários em que é necessária consistência absoluta entre todos os pods (nesse caso, pode-se usar a estratégia **Recreate**).
+
+Se precisar de um exemplo mais detalhado ou ajustes para um caso específico, me avise!
+
+
+## ✨ Entendendo o Recreate
+
+#### Estratégia `Recreate` no Kubernetes
+
+A estratégia **`Recreate`** no Kubernetes é uma das duas principais estratégias de atualização disponíveis (a outra é **`RollingUpdate`**). Essa estratégia é utilizada em controladores como o **`Deployment`** e o **`StatefulSet`**, definindo como os pods devem ser gerenciados durante uma atualização.
+
 #### O que é a estratégia `Recreate`?
 - **Comportamento**: Na estratégia `Recreate`, todos os pods do conjunto antigo são **primeiro terminados** antes que os novos sejam criados. Isso significa que haverá um período de indisponibilidade enquanto a transição ocorre.
 - **Configuração**: Essa estratégia é útil para aplicações que não suportam múltiplas versões em execução ao mesmo tempo ou quando o estado compartilhado entre as versões pode causar conflitos.
+
 #### Quando usar `Recreate`?
 - **Aplicações com estado**: Quando sua aplicação mantém um estado que pode ser corrompido se múltiplas instâncias (ou versões diferentes) forem executadas simultaneamente.
 - **Conexões exclusivas**: Se o aplicativo usa conexões de longa duração, filas, ou qualquer recurso exclusivo que não permita concorrência entre múltiplas versões.
 - **Compatibilidade restrita**: Quando não há compatibilidade retroativa ou compatibilidade entre versões (por exemplo, uma aplicação com mudanças radicais no banco de dados ou API).
+
 #### Vantagens do `Recreate`
 1. **Simplicidade**: A estratégia elimina a necessidade de gerenciar múltiplas versões simultaneamente.
 2. **Evita conflitos**: Ideal para cenários em que as versões do aplicativo podem interferir uma na outra.
 3. **Previsibilidade**: Como todos os pods antigos são encerrados antes de iniciar os novos, é mais fácil garantir consistência.
+
 #### Desvantagens do `Recreate`
 1. **Indisponibilidade**: Haverá um período de downtime entre o término dos pods antigos e o início dos novos.
 2. **Impacto em usuários**: Pode não ser adequado para aplicações críticas onde a disponibilidade contínua é essencial.
+
 #### Dicas ao usar `Recreate`
 - **Planeje janelas de manutenção**: Use a estratégia durante períodos de baixa demanda para minimizar o impacto nos usuários.
 - **Monitore os recursos**: Certifique-se de que os novos pods podem ser inicializados rapidamente para reduzir o downtime.
 - **Use readiness probes**: Isso ajuda a garantir que os novos pods estejam totalmente funcionais antes de considerar a atualização como concluída.
+
+A estratégia `Recreate` é um bom ajuste para cenários específicos, mas, para a maioria das aplicações modernas, a **estratégia `RollingUpdate`** é mais recomendada por evitar downtime.
+
+## ✨ Explorando Variável de Ambiente na Aplicação
+
+#### Configurar e Consumir Informações de um Arquivo `.env` no NestJS
+
+No NestJS, você pode configurar e consumir informações de um arquivo `.env` usando o pacote `@nestjs/config`. Abaixo está um guia passo a passo:
+
+---
+
 #### 1. Instalar Dependências
 Primeiro, instale o pacote necessário para trabalhar com variáveis de ambiente:
+
+```bash
+npm install @nestjs/config dotenv
+```
+
+---
+
 #### 2. Criar um Arquivo `.env`
 Crie um arquivo `.env` na raiz do seu projeto e adicione suas variáveis:
+
+
+```env
+APP=rocketseat-app
+```
+
 #### 3. Configurar o Módulo de Configuração no AppModule
 No arquivo `app.module.ts`, importe e configure o módulo de configuração:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Torna o módulo global, não precisa importar em outros módulos
+      envFilePath: '.env', // Caminho do arquivo .env (opcional, padrão é .env)
+    }),
+  ],
+})
+export class AppModule {}
+```
 #### 4. Consumir Variáveis no Código
 Use o serviço `AppService` para acessar as variáveis de ambiente. Você pode injetar o `ConfigService` em qualquer lugar.
+
+```typescript
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Rocketset Api!';
+  }
+
+  getExample(): string {
+    
+    return `Estou rodando no K8s! ${ Date.UTC }: ${process.env.APP}`;
+  }
+}
+```
+
+Agora, seu aplicativo NestJS está configurado para consumir e validar variáveis de ambiente do arquivo `.env`! 🚀
+
+## ✨ Entendendo sobre o ConfigMap
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v3 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v3
+
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v3
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/undefined-variable.png)
+
+
+Como podemos ver o valor entre a APP do env e a aplicação estão indefinidos. Para resolvermos esse problema vamos criar um novo arquivo 
+`configmap.yaml`.
+
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: api-rocket
+data:
+  app-name: rocketseat-app
+
+```
+
+
 #### Propósito do Script
 A definição de um **ConfigMap** no Kubernetes. Um **ConfigMap** é usado para armazenar pares de chave-valor que podem ser utilizados pelas aplicações em contêiners, 
 permitindo a configuração de aplicações sem necessidade de alterar suas imagens.
+
+
 #### 1. `apiVersion: v1`
 - **Significado:** Define a versão da API do Kubernetes que será usada para criar este objeto.
 - **Detalhes:** A versão `v1` é a versão estável e comumente usada para objetos como ConfigMaps.
+
 #### 2. `kind: ConfigMap`
 - **Significado:** Especifica o tipo de recurso que está sendo definido.
 - **Detalhes:** Neste caso, o recurso é um ConfigMap, que será usado para armazenar dados de configuração em forma de texto simples.
+
 #### 3. `metadata:`
 - **Significado:** Contém metadados sobre o recurso.
 - **Detalhes:** Esta seção inclui informações como o nome do ConfigMap e, opcionalmente, labels e anotações para identificação e organização.
+
 ##### 3.1. `name: api-rocket`
 - **Significado:** Define o nome do ConfigMap.
 - **Detalhes:** O nome é `api-rocket`, que será usado para referenciar este ConfigMap em outros recursos do Kubernetes.
+
 #### 4. `data:`
 - **Significado:** Contém os dados de configuração em formato de pares de chave-valor.
 - **Detalhes:** Os dados aqui definidos podem ser usados por aplicações para configurar seu funcionamento.
+
 ##### 4.1. `app-name: rocketseat-app`
 - **Significado:** Define um par chave-valor onde:
   - `app-name` é a chave.
   - `rocketseat-app` é o valor associado à chave.
 - **Detalhes:** Este valor pode ser utilizado por uma aplicação em execução para, por exemplo, identificar o nome do aplicativo.
+
 ### Exemplo de Uso
 - Este ConfigMap pode ser montado como um arquivo ou passado como variável de ambiente para os contêiners que fazem parte de um **Pod** no Kubernetes.
+
+
+
 ### Benefícios do Uso do ConfigMap
 - **Centralização de Configuração:** Facilita a alteração de parâmetros sem a necessidade de reconstruir as imagens dos contêineres.
 - **Flexibilidade:** Permite que a mesma imagem seja usada em diferentes ambientes com configurações distintas.
 - **Manutenção:** Facilita a gestão de configurações em ambientes dinâmicos e escaláveis.
+
+
+
+```bash
+
+kubectl apply -f k8s/configmap.yaml -n ns-rocket
+
+```
+
+![](image/Kubernetes/confirm-variable-configmap.png)
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+
+![](image/Kubernetes/ok-variable.png)
+
+## ✨ Explorando o objeto Secret
+
+
+Vamos criar um novo arquivo 
+`secret.yaml`.
+
+```yaml
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name:  api-rocket-secrets
+type: Opaque
+data:
+  api-key: cm9ja2V0c2VhdC1hcHA=
+
+```
+
+`app-key: cm9ja2V0c2VhdC1hcHA=` o valor da `app-key` deve ser em base 64 
+
+
+```bash
+
+kubectl apply -f k8s/secret.yaml -n ns-rocket
+
+```
+
+```bash
+
+docker build -t andremariadevops/api-rocket:v4 .
+
+```
+
+
+```bash
+
+docker push andremariadevops/api-rocket:v4
+
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v4
+        imagePullPolicy: IfNotPresent
+        env:
+          - name:  APP
+            valueFrom:
+              configMapKeyRef:
+                name:  api-rocket
+                key:  app-name
+          - name:  API_KEY
+            valueFrom:
+              secretKeyRef:
+                name:  api-rocket-secrets
+                key:  api-key
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+        - containerPort: 3000
+```
+![](image/Kubernetes/secret-kube.png)
+
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+## ✨ Melhorando Gerenciamento de Envs
+
+![](image/Kubernetes/change-implementation-secret-variable.png)
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: api-rocket
+
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 10%
+  selector:
+    matchLabels:
+      api: api-rocket
+  template:
+    metadata:
+      labels:
+        api: api-rocket
+    spec:
+      containers:
+      - name: api-rocket
+        image: andremariadevops/api-rocket:v4
+        imagePullPolicy: IfNotPresent
+        envFrom:
+          - configMapRef:
+              name: api-rocket
+          - secretRef:
+              name: api-rocket-secrets
+        # env:
+        #   - name:  APP
+        #     valueFrom:
+        #       configMapKeyRef:
+        #         name:  api-rocket
+        #         key:  app-name
+        #   - name:  API_KEY
+        #     valueFrom:
+        #       secretKeyRef:
+        #         name:  api-rocket-secrets
+        #         key:  api-key
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 3000
+
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: api-rocket
+
+data:
+  APP: rocketseat-app
+  # app-name: rocketseat-app
+
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name:  api-rocket-secrets
+type: Opaque
+data:
+  API_KEY: cm9ja2V0c2VhdC1hcHA=
+  # api-key: cm9ja2V0c2VhdC1hcHA=
+
+```
+
+#### Explicação das Mudanças nos Trechos Comentados do Deployment
+
+No **Deployment** do Kubernetes, o trecho comentado utilizava variáveis de ambiente específicas referenciadas diretamente nos campos `env` (`APP` e `API_KEY`). No trecho atual, optou-se por utilizar os recursos `envFrom` para importar variáveis de ambiente de um **ConfigMap** e de um **Secret**. Essa alteração traz as seguintes vantagens:
+
+---
+
 #### 1. Manutenção Simplificada
 - **Comentado**:
   - Variáveis de ambiente específicas (`APP` e `API_KEY`) são configuradas diretamente no `Deployment`. Caso outras variáveis precisem ser adicionadas ou modificadas, o arquivo do `Deployment` precisaria ser alterado.
+
+- **Atual**:
+  - O uso de `envFrom` permite que todas as variáveis contidas no `ConfigMap` e no `Secret` sejam automaticamente carregadas, evitando alterações repetidas no `Deployment`.
+
+---
+
 #### 2. Segregação de Responsabilidades
 - **Comentado**:
   - Todas as definições de variáveis (tanto sensíveis quanto não sensíveis) estão no mesmo local.
+
+- **Atual**:
+  - Separar as variáveis sensíveis (`API_KEY`, no `Secret`) e não sensíveis (`APP`, no `ConfigMap`) melhora a organização e facilita o controle. **ConfigMaps** são usados para dados não confidenciais, enquanto **Secrets** são criptografados.
+
+---
+
 #### 3. Escalabilidade e Reutilização
 - **Comentado**:
   - Cada variável de ambiente precisava ser explicitamente mapeada, tornando o arquivo de configuração menos reutilizável em diferentes cenários.
+
+- **Atual**:
+  - `ConfigMap` e `Secret` podem ser reutilizados por outros **Deployments** ou serviços que precisem das mesmas variáveis. Isso elimina redundâncias e simplifica a gestão de configurações.
+
+---
+
 #### 4. Redução de Erros
 - **Comentado**:
   - O uso de `configMapKeyRef` e `secretKeyRef` exige especificar cada chave e pode levar a erros caso o nome ou a chave estejam incorretos.
+
+- **Atual**:
+  - `envFrom` reduz a possibilidade de erros, pois todas as chaves válidas no `ConfigMap` ou no `Secret` são automaticamente carregadas.
+
+---
+
+#### Alterações no **ConfigMap** e **Secret**
+
 ##### **ConfigMap**
 - **Comentado**:
   - Definição direta da chave `app-name`, que é referenciada no `Deployment`.
 - **Atual**:
   - Alterado para usar diretamente a variável `APP`, facilitando o carregamento pelo `envFrom` e mantendo consistência com o `.env`.
+
 ##### **Secret**
 - **Comentado**:
   - Chave nomeada como `api-key`, usada diretamente no `Deployment`.
 - **Atual**:
   - Alterada para `API_KEY`, mantendo consistência com o `.env` e simplificando o carregamento via `envFrom`.
+
+---
+
 #### Vantagens Adicionais
 1. **Conformidade com Boas Práticas**: A separação entre ConfigMap e Secret é alinhada às práticas recomendadas do Kubernetes.
 2. **Integração com Ferramentas DevOps**: O uso de `.env` como referência facilita a integração com pipelines de CI/CD e evita discrepâncias entre o ambiente local e o Kubernetes.
 3. **Escalabilidade**: O novo formato suporta com facilidade a adição de mais variáveis, sem necessidade de alterações estruturais no `Deployment`.
-#### **Cabeçalho**
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
+
+
+
+```bash
+
+kubectl apply -f k8s/secret.yaml -n ns-rocket
+
 ```
-#### 1. `kubectl run`
-- **`kubectl`**: Ferramenta CLI para interagir com clusters Kubernetes.
-- **`run`**: Cria e executa um pod no cluster Kubernetes.
-#### 2. Nome do pod: `fortio`
-- Define o nome do pod temporário como **`fortio`**.
-#### 3. `-it`
-- **`-i`**: Habilita entrada interativa para o pod.
-- **`-t`**: Ativa o modo de terminal, conectando seu terminal local ao processo do pod.
-#### 4. `-n ns-rocket`
-- Especifica o **namespace** Kubernetes onde o pod será criado.
-- **`ns-rocket`**: Nome do namespace.
-#### 5. `--rm`
-- Remove automaticamente o pod após sua execução. Isso evita acumular pods temporários.
-#### 6. `--image=fortio/fortio`
-- Define a **imagem Docker** a ser usada.
-- **`fortio/fortio`**: Imagem da ferramenta Fortio, usada para testes de desempenho e carga.
-#### 7. `-- load`
-- Ativa o modo **teste de carga** no Fortio.
-#### 8. `-qps 6000`
-- Define o número de **requisições por segundo (QPS)**.
-- **`6000`**: Envia **6.000 requisições por segundo**.
-#### 9. `-t 120s`
-- Especifica a **duração do teste**.
-- **`120s`**: O teste será executado por **120 segundos (2 minutos)**.
-#### 10. `-c 50`
-- Define o número de **conexões simultâneas (threads)**.
-- **`50`**: Usa **50 conexões simultâneas** durante o teste.
-#### 11. `"http://api-rocket-svc/example-k8s"`
-- Define o **endpoint** a ser testado.
-- **`http://api-rocket-svc/example-k8s`**: URL do serviço que será submetido ao teste de carga.
-- Como está dentro do Cluster é possível enxergar o serviço.
----
-#### `stabilizationWindowSeconds: 5`
-- Especifica uma janela de estabilização de **5 segundos**.
-- Isso significa que o HPA esperará **5 segundos** antes de aumentar o número de réplicas, mesmo que as métricas indiquem a necessidade de escalonamento.
-- Esse intervalo reduz oscilações rápidas no número de réplicas, garantindo que o aumento seja consistente.
-#### `policies`
-Define as políticas que limitam como o escalonamento para cima ocorrerá. Aqui, há apenas uma política ativa:
-#### Janela de Estabilização (`stabilizationWindowSeconds`)
-- Serve para prevenir oscilações rápidas no número de réplicas causadas por variações momentâneas na carga.
-#### Política Baseada em Réplicas Absolutas (`type: Pods`)
-- Permite um aumento controlado no número de réplicas.
-- Por exemplo, se há **4 réplicas** atualmente e a carga exige mais réplicas, o HPA só adicionará **até 2 réplicas** em intervalos de **5 segundos**, mesmo que mais réplicas sejam necessárias.
-#### **Controle Fino do Escalonamento**
-- Evita um aumento excessivo e rápido no número de réplicas, o que pode levar ao uso ineficiente de recursos.
-- Permite um ajuste gradual e controlado.
-#### **Estabilidade**
-- Reduz oscilações no número de réplicas, mesmo em cenários de carga variável.
-#### **Respostas Rápidas**
-- A janela de estabilização curta (**5 segundos**) permite respostas quase imediatas em situações de alta demanda.
-### **Como funciona?**
-- O Kubernetes monitora os containers continuamente usando as probes.
-- Se uma **liveness probe** falhar, o container será reiniciado automaticamente.
-- Se um nó do cluster falhar, os pods que estavam nesse nó são redistribuídos para outros nós disponíveis.
-- Se uma **readiness probe** falhar, o tráfego não é roteado para aquele pod até que ele volte a estar saudável.
-### **Benefícios**:
-- Redução de downtime (tempo de inatividade).
-- Menor necessidade de intervenção manual.
-- Maior confiabilidade e estabilidade da aplicação.
-#### startupProbe
-- **`startupProbe`** verifica a saúde do contêiner **durante o processo de inicialização**.
-- Enquanto a sonda não for bem-sucedida, o Kubernetes considera que o contêiner **ainda não está pronto** para aceitar tráfego ou executar outras operações.
-#### httpGet
-- Especifica que a sonda fará uma requisição HTTP para verificar o estado da aplicação.
-  - **path: /healthz**  
-    Define o endpoint no contêiner que será verificado para determinar a saúde do contêiner.
-  - **port: 3000**  
-    Porta do contêiner onde será feita a requisição HTTP.
-#### failureThreshold
-- **3**  
-  Número de falhas consecutivas permitidas antes que o Kubernetes considere que o contêiner **não conseguiu inicializar**.  
-  Após 3 falhas consecutivas, o contêiner será reiniciado.
-#### successThreshold
-- **1**  
-  Número de verificações bem-sucedidas consecutivas necessárias para o Kubernetes considerar o contêiner **pronto**.  
-  Aqui, basta **1 verificação bem-sucedida**.
-#### timeoutSeconds
-- **1**  
-  Tempo máximo (em segundos) que o Kubernetes espera por uma resposta do endpoint antes de considerar a tentativa como falha.
-#### periodSeconds
-- **10**  
-  Intervalo de tempo (em segundos) entre cada execução da sonda.
-#### Funcionamento Geral
-1. O Kubernetes verifica periodicamente o endpoint HTTP `/healthz` na porta 3000 assim que o contêiner começa a iniciar.
-2. Caso o endpoint responda com sucesso (ex.: HTTP 200), o contêiner será considerado como inicializado.
-3. Se o contêiner falhar 3 vezes consecutivas (por timeout ou erro no endpoint), ele será reiniciado.
-4. A sonda é executada a cada 10 segundos, e o Kubernetes espera no máximo 1 segundo pela resposta em cada verificação.
-#### NestFactory
-- É uma classe fornecida pelo NestJS que facilita a criação de instâncias de aplicativos.
-- `NestFactory.create()` é o método usado para criar a aplicação principal.
-#### AppModule
-- É o módulo raiz da aplicação. Ele geralmente serve como ponto de entrada, onde outros módulos, controladores e provedores são importados e configurados.
-- Esse arquivo `app.module.ts` normalmente define os componentes principais que sua aplicação usará.
-#### Definição da função bootstrap
-- A função bootstrap é uma função assíncrona que serve como o ponto de entrada para a aplicação.
-- O NestJS é baseado em programação assíncrona devido à natureza do Node.js e seu loop de eventos.
-#### AppModule
-- O NestJS usa o conceito de módulos, e o `AppModule` é o módulo inicial, onde você configura rotas, controladores, serviços, middlewares, etc.
-#### Arquitetura modular
-- O código segue o padrão arquitetural orientado a módulos, permitindo uma organização mais limpa e escalável.
-## Volumes e StorageClass
-No Kubernetes, volumes são recursos utilizados para armazenar dados persistentes que podem ser acessados por contêineres, 
-mesmo que estes sejam reiniciados ou recriados. 
-## PersistentVolume (PV)
-Um `PersistentVolume` é um recurso no Kubernetes que representa uma unidade de armazenamento configurada de forma independente 
-do ciclo de vida dos pods. 
-## PersistentVolumeClaim (PVC)
-Um `PersistentVolumeClaim` é uma solicitação feita por um pod para utilizar um `PersistentVolume`. 
-## Criando o StorageClass
-O `StorageClass` é criado por meio de um manifesto YAML. 
-## Reservando o espaço com o PV
-O `PersistentVolume` é criado manualmente ou automaticamente com base em um `StorageClass`. 
-## Criando o PVC
-O `PersistentVolumeClaim` é criado para solicitar um volume com base nas especificações desejadas. 
+
+```bash
+
+kubectl apply -f k8s/configmap.yaml -n ns-rocket
+
+```
+
+```bash
+
+kubectl apply -f k8s/deployment.yaml -n ns-rocket
+
+```
+
+
