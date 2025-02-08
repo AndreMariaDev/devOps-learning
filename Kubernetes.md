@@ -30,7 +30,7 @@
 
 ## ✨ Contexto inicial e problema
 
-### Cenário
+### Cenários
 
 - `"Temos Uma aplicação executando em container e essa execução em container traz algumas preocupações (Problemas)."`
 - `"Temos várias aplicações executando em container e essa execução em container traz algumas preocupações (Problemas)."`
